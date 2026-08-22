@@ -21,20 +21,18 @@ import java.util.Map;
 /**
  * Corrige un ecart de fidelite observe entre le rendu natif d'Apache POI
  * ({@code XSLFSlide.draw(Graphics2D)}) et le rendu natif de PowerPoint :
- * pour certaines polices (ex. PoliceX, la police de l'Etat francais), les
- * metriques verticales calculees par le pipeline Java2D/AWT surestiment la
- * hauteur de texte reellement necessaire d'environ 30 a 35% par rapport a ce
- * que produit le moteur de rendu de PowerPoint. POI n'applique par ailleurs
- * jamais le retrecissement automatique de police ("shrink text on overflow",
- * stocke par PowerPoint dans {@code <a:normAutofit fontScale="...">}) lors du
- * rendu : {@code slide.draw()} utilise toujours la taille de police brute.
+ * pour certaines polices, les metriques verticales calculees par le pipeline
+ * Java2D/AWT surestiment la hauteur de texte reellement necessaire (jusqu'a
+ * 30-35% observe dans certains cas) par rapport a ce que produit le moteur de
+ * rendu de PowerPoint. POI n'applique par ailleurs jamais le retrecissement
+ * automatique de police ("shrink text on overflow", stocke par PowerPoint
+ * dans {@code <a:normAutofit fontScale="...">}) lors du rendu :
+ * {@code slide.draw()} utilise toujours la taille de police brute.
  *
  * <p>Consequence non corrigee : une zone de texte peut deborder visuellement
  * de sa boite d'origine et chevaucher une autre forme voisine.
  *
- * <p><b>Strategie retenue</b> (voir {@code conversion_pptx_vers_images.md} du
- * projet d'origine pour l'historique complet des approches essayees et
- * ecartees) : on ne "triche" pas sur les metriques de ligne calculees par
+ * <p><b>Strategie retenue</b> : on ne "triche" pas sur les metriques de ligne calculees par
  * Java2D (une compensation directe de {@code DrawTextFragment.getHeight()}
  * corrige bien le debordement mais introduit un nouveau chevauchement entre
  * lignes consecutives d'une meme zone de texte, car cette valeur sert aussi

@@ -37,18 +37,16 @@ import java.util.Objects;
  *
  * <h2>Fidelite du rendu et limites connues</h2>
  * <p>Le texte, les formes vectorielles, les images et les tableaux natifs
- * sont rendus fidelement. Deux limites sont documentees (voir
- * {@code conversion_pptx_vers_images.md} du projet d'origine pour le detail
- * complet de l'investigation) :
+ * sont rendus fidelement. Deux limites sont documentees :
  * <ul>
  *   <li><b>Les graphiques integres (Excel/{@code XSLFChart}) ne sont pas rendus</b>
  *       par Apache POI - un espace vide apparait a leur emplacement. Contournement
  *       possible non implemente ici : extraire les donnees via l'API {@code XSLFChart}/
  *       {@code XDDFChart} et dessiner le graphique separement (ex. avec JFreeChart).</li>
- *   <li><b>Ecart de metriques de police</b> : pour certaines polices (observe avec
- *       "PoliceX", la police de l'Etat francais), Java2D/AWT surestime la hauteur de
- *       texte necessaire d'environ 30 a 35% par rapport au moteur de rendu natif de
- *       PowerPoint, ce qui peut faire deborder une zone de texte hors de sa boite.
+ *   <li><b>Ecart de metriques de police</b> : pour certaines polices, Java2D/AWT
+ *       surestime la hauteur de texte necessaire (jusqu'a 30-35% observe dans certains
+ *       cas) par rapport au moteur de rendu natif de PowerPoint, ce qui peut faire
+ *       deborder une zone de texte hors de sa boite.
  *       Corrige par defaut (voir {@link RenderOptions#isFixTextOverflow()}) en
  *       retrecissant la police des formes concernees, mais seulement lorsque ce
  *       debordement chevaucherait reellement une autre forme de texte voisine -
