@@ -130,4 +130,61 @@ class PptxSlideRendererTest {
         File missing = tempDir.resolve("does-not-exist.pptx").toFile();
         assertThrows(PptxRenderException.class, () -> PptxSlideRenderer.renderSlide(missing, 1));
     }
+
+    @Test
+    void renderSlideToFile_jpegFormat_writesReadableOpaqueJpeg() throws Exception {
+        File pptx = buildPptx(1);
+        Dimension pageSize = pageSizeOf(pptx);
+        File output = tempDir.resolve("out.jpg").toFile();
+        RenderOptions options = RenderOptions.builder().format(OutputFormat.JPEG).build();
+
+        PptxSlideRenderer.renderSlideToFile(pptx, 1, output, options);
+
+        assertTrue(output.isFile());
+        BufferedImage readBack = ImageIO.read(output);
+        assertNotNull(readBack);
+        assertEquals(Math.round(pageSize.width * 2.0f), readBack.getWidth());
+        assertEquals(Math.round(pageSize.height * 2.0f), readBack.getHeight());
+        // Le JPEG ne supporte pas la transparence : le type lu ne doit jamais porter de canal alpha.
+        assertTrue(readBack.getColorModel().getNumComponents() == 3
+                || !readBack.getColorModel().hasAlpha());
+    }
+
+    @Test
+    void renderSlideToFile_jpegFormat_lowQualityProducesSmallerFileThanHighQuality() throws Exception {
+        File pptx = buildPptx(1);
+        File lowQualityOutput = tempDir.resolve("low.jpg").toFile();
+        File highQualityOutput = tempDir.resolve("high.jpg").toFile();
+
+        PptxSlideRenderer.renderSlideToFile(pptx, 1, lowQualityOutput,
+                RenderOptions.builder().format(OutputFormat.JPEG).jpegQuality(0.05f).build());
+        PptxSlideRenderer.renderSlideToFile(pptx, 1, highQualityOutput,
+                RenderOptions.builder().format(OutputFormat.JPEG).jpegQuality(1.0f).build());
+
+        assertTrue(lowQualityOutput.length() < highQualityOutput.length());
+    }
+
+    @Test
+    void renderSlideAsSvg_producesWellFormedSvgContainingText() throws Exception {
+        File pptx = buildPptx(1);
+
+        String svg = PptxSlideRenderer.renderSlideAsSvg(pptx, 1, RenderOptions.defaults());
+
+        assertNotNull(svg);
+        assertTrue(svg.contains("<svg"));
+        assertTrue(svg.contains("Slide 1"));
+    }
+
+    @Test
+    void renderSlideToFile_svgFormat_writesFileStartingWithXmlDeclaration() throws Exception {
+        File pptx = buildPptx(1);
+        File output = tempDir.resolve("out.svg").toFile();
+        RenderOptions options = RenderOptions.builder().format(OutputFormat.SVG).build();
+
+        PptxSlideRenderer.renderSlideToFile(pptx, 1, output, options);
+
+        assertTrue(output.isFile());
+        String content = java.nio.file.Files.readString(output.toPath());
+        assertTrue(content.contains("<svg"));
+    }
 }

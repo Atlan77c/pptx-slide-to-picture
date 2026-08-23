@@ -11,8 +11,8 @@
 
   <name>pptx-slide-to-image</name>
   <description>
-    Librairie Java pour convertir une slide d'un fichier PowerPoint (.pptx) en image (PNG),
-    en pur Java via Apache POI - sans dependance a LibreOffice, PowerPoint ou un navigateur headless.
+    Librairie Java pour convertir une slide d'un fichier PowerPoint (.pptx) en image (PNG, JPEG ou SVG),
+    en pur Java via Apache POI et Apache Batik - sans dependance a LibreOffice, PowerPoint ou un navigateur headless.
   </description>
   <url>https://github.com/Atlan77c/pptx-slide-to-image</url>
 
@@ -32,6 +32,7 @@
     <poi.version>5.2.5</poi.version>
     <slf4j.version>2.0.13</slf4j.version>
     <junit.version>5.10.2</junit.version>
+    <batik.version>1.18</batik.version>
   </properties>
 
   <dependencies>
@@ -50,6 +51,27 @@
       <groupId>org.apache.poi</groupId>
       <artifactId>poi-scratchpad</artifactId>
       <version>${poi.version}</version>
+    </dependency>
+
+    <!--
+      Export SVG (rendu vectoriel) : org.apache.batik:batik-svggen fournit
+      SVGGraphics2D, une implementation de java.awt.Graphics2D qui capture les
+      appels de dessin et les serialise en SVG au lieu de peindre des pixels -
+      reutilise donc tel quel le meme pipeline de rendu (XSLFSlide.draw(),
+      correctif de debordement de texte) que pour le PNG/JPEG.
+      Choisi plutot que JFreeSVG (GPLv3/commercial, incompatible avec la
+      licence MIT de ce projet) : Batik est sous licence Apache 2.0, permissive
+      comme POI et comme ce projet.
+    -->
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-svggen</artifactId>
+      <version>${batik.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-dom</artifactId>
+      <version>${batik.version}</version>
     </dependency>
 
     <!--

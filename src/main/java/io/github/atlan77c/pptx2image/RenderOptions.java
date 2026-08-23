@@ -19,11 +19,15 @@ public final class RenderOptions {
     private final float scale;
     private final boolean fixTextOverflow;
     private final Color background;
+    private final OutputFormat format;
+    private final float jpegQuality;
 
     private RenderOptions(Builder builder) {
         this.scale = builder.scale;
         this.fixTextOverflow = builder.fixTextOverflow;
         this.background = builder.background;
+        this.format = builder.format;
+        this.jpegQuality = builder.jpegQuality;
     }
 
     /** Facteur d'echelle applique a la taille native de la slide (voir {@link Builder#scale(float)}). */
@@ -41,6 +45,25 @@ public final class RenderOptions {
         return background;
     }
 
+    /**
+     * Format de sortie utilise par {@code PptxSlideRenderer.renderSlideToFile(...)}
+     * (voir {@link Builder#format(OutputFormat)}). Sans effet sur {@code renderSlide}
+     * (toujours un {@link java.awt.image.BufferedImage} raster) ni sur
+     * {@code renderSlideAsSvg} (toujours du SVG) - seule la variante "vers fichier"
+     * en tient compte pour choisir l'encodage a ecrire.
+     */
+    public OutputFormat getFormat() {
+        return format;
+    }
+
+    /**
+     * Qualite de compression JPEG, utilisee uniquement lorsque {@link #getFormat()}
+     * vaut {@link OutputFormat#JPEG} (voir {@link Builder#jpegQuality(float)}).
+     */
+    public float getJpegQuality() {
+        return jpegQuality;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -54,6 +77,8 @@ public final class RenderOptions {
         private float scale = 2.0f;
         private boolean fixTextOverflow = true;
         private Color background = Color.WHITE;
+        private OutputFormat format = OutputFormat.PNG;
+        private float jpegQuality = 0.92f;
 
         private Builder() {
         }
@@ -91,6 +116,30 @@ public final class RenderOptions {
          */
         public Builder background(Color background) {
             this.background = Objects.requireNonNull(background, "background");
+            return this;
+        }
+
+        /**
+         * Format de sortie utilise par {@code PptxSlideRenderer.renderSlideToFile(...)}.
+         * Par defaut {@link OutputFormat#PNG}. Voir {@link OutputFormat} pour le
+         * detail des formats disponibles et leurs limites respectives.
+         */
+        public Builder format(OutputFormat format) {
+            this.format = Objects.requireNonNull(format, "format");
+            return this;
+        }
+
+        /**
+         * Qualite de compression JPEG, entre {@code 0.0} (taille minimale, qualite
+         * la plus degradee) et {@code 1.0} (qualite maximale, quasi sans perte).
+         * Par defaut {@code 0.92f}. Sans effet si {@link #format(OutputFormat)}
+         * n'est pas {@link OutputFormat#JPEG}.
+         */
+        public Builder jpegQuality(float jpegQuality) {
+            if (jpegQuality < 0f || jpegQuality > 1f) {
+                throw new IllegalArgumentException("jpegQuality doit etre compris entre 0.0 et 1.0, recu: " + jpegQuality);
+            }
+            this.jpegQuality = jpegQuality;
             return this;
         }
 
