@@ -64,6 +64,42 @@ import java.util.Map;
  * les autres formes du slide a leur place d'origine : moins fidele au
  * mecanisme technique de ce mode d'autofit, mais plus fidele au rendu global
  * du diagramme, ce qui est le critere qui compte ici.
+ *
+ * <p><b>Exception au retrecissement force ({@code NONE})</b> : decouverte sur
+ * un vrai fichier (slide 21, trois boites {@code noAutofit} de ~40pt de haut
+ * ne contenant chacune qu'un seul caractere {@code "*"} decoratif a 72pt,
+ * volontairement surdimensionne par l'auteur pour dessiner un accent visuel -
+ * chevauchant deliberement une forme voisine, exactement comme PowerPoint
+ * l'affiche). Si la taille de police <em>declaree</em> (avant toute mesure)
+ * depasse deja a elle seule la hauteur de la boite, le debordement n'est pas
+ * un artefact de mesure Java2D : PowerPoint montrerait le meme debordement
+ * quelle que soit la precision du calcul de metriques, puisque meme un calcul
+ * parfait ne ferait jamais tenir un texte a 72pt dans une boite de 40pt. Un
+ * tel cas n'est donc jamais retreci de force, meme s'il chevauche
+ * effectivement une autre forme de texte.
+ *
+ * <p><b>Deuxieme garde-fou ({@code NONE}) : objectif "sans collision"
+ * plutot que "tient dans la boite"</b> - decouverte sur un autre vrai
+ * fichier (slide 5, boite {@code noAutofit} de ~84pt de haut contenant 9
+ * paragraphes de texte, alignement "Milieu"). Contrairement au cas
+ * precedent, aucune taille de police declaree ne depasse a elle seule la
+ * hauteur de la boite : c'est le volume de texte (nombre de lignes) qui
+ * fait que le retrecissement visant un ajustement complet dans la boite
+ * (le meme objectif que pour {@code NORMAL}/{@code SHAPE}) n'atteint jamais
+ * sa cible, meme ecrase jusqu'a la limite basse ({@link #MIN_SCALE}) ou
+ * {@link #MAX_ITER} iterations. Or PowerPoint n'exige jamais qu'un texte
+ * {@code noAutofit} tienne entierement dans sa boite - seulement qu'il ne
+ * produise pas de chevauchement genant avec une forme voisine, ce qui est
+ * la seule raison d'etre du retrecissement force ici. Quand l'ajustement
+ * complet echoue, une deuxieme passe vise donc un objectif plus modeste :
+ * ne retrecir que jusqu'a ce que la collision reelle detectee plus haut
+ * disparaisse (recalculee a chaque iteration), en acceptant un debordement
+ * residuel au-dela de la boite tant qu'il ne chevauche plus la forme
+ * voisine - exactement ce que montre PowerPoint pour cette boite (confirme
+ * visuellement par l'auteur du fichier). Si meme cette cible plus modeste
+ * n'est pas atteinte a la limite basse, la taille d'origine est restauree
+ * en dernier recours plutot que de produire un texte ecrase qui chevauche
+ * quand meme.
  */
 public final class OverflowAwareTextFitter {
 
@@ -120,15 +156,30 @@ public final class OverflowAwareTextFitter {
             }
 
             if (forced) {
+                double maxDeclaredFontSize = maxDeclaredFontSize(ts);
+                if (maxDeclaredFontSize > 0 && maxDeclaredFontSize > anchor.getHeight()) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("{} : taille de police declaree ({}pt) > hauteur de la boite ({}pt) -> "
+                                + "debordement volontaire de l'auteur (ex. gros caractere decoratif), non retrecie",
+                                shape.getShapeName(), maxDeclaredFontSize, anchor.getHeight());
+                    }
+                    continue;
+                }
+
                 double initialTextHeight = ts.getTextHeight(graphics);
-                List<Rectangle2D> overflowZones = computeOverflowZones(anchor, initialTextHeight, ts.getVerticalAlignment());
-                boolean collides = !overflowZones.isEmpty() && overflowCollidesWithText(overflowZones, ts, allTextShapes);
-                if (!collides) {
+                VerticalAlignment valign = ts.getVerticalAlignment();
+                List<Rectangle2D> overflowZones = computeOverflowZones(anchor, initialTextHeight, valign);
+                XSLFShape collidingShape = overflowZones.isEmpty() ? null : findCollidingShape(overflowZones, ts, allTextShapes);
+                if (collidingShape == null) {
                     if (!overflowZones.isEmpty() && LOG.isDebugEnabled()) {
                         LOG.debug("{} : debordement mesure ({} > {}) mais aucune collision avec une autre "
                                 + "forme de texte -> non retrecie", shape.getShapeName(), initialTextHeight, anchor.getHeight());
                     }
                     continue;
+                }
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("{} : debordement mesure ({} > {}, alignement {}) entre en collision avec '{}' -> retrecissement force",
+                            shape.getShapeName(), initialTextHeight, anchor.getHeight(), valign, collidingShape.getShapeName());
                 }
             }
 
@@ -153,6 +204,65 @@ public final class OverflowAwareTextFitter {
                 didShrink = true;
             }
 
+            if (forced && textHeight > targetHeight) {
+                // Le retrecissement visant un ajustement complet dans la boite n'a pas
+                // converge, meme en ecrasant la police jusqu'a sa limite basse (MIN_SCALE)
+                // ou le nombre max d'iterations (MAX_ITER) : la boite est structurellement
+                // trop petite pour ce texte (ex. legende/annotation flottante avec bien plus
+                // de texte que la boite ne pourra jamais en contenir - meme dans
+                // PowerPoint). Deuxieme passe avec un objectif different : PowerPoint
+                // n'exige jamais qu'un texte noAutofit tienne entierement dans sa boite -
+                // seulement qu'il ne produise pas un chevauchement genant avec une forme
+                // voisine, ce qui est la seule raison d'etre du retrecissement force (voir
+                // Javadoc de la classe). On repart donc de la taille d'origine et on ne
+                // retrecit que jusqu'a la disparition de la collision reelle detectee plus
+                // haut - un debordement residuel au-dela de la boite, mais sans chevaucher
+                // la forme voisine, est accepte tel quel.
+                for (Map.Entry<XSLFTextRun, Double> e : baseline.entrySet()) {
+                    e.getKey().setFontSize(e.getValue());
+                }
+                VerticalAlignment valign = ts.getVerticalAlignment();
+                factor = 1.0;
+                iter = 0;
+                didShrink = false;
+                textHeight = ts.getTextHeight(graphics);
+                List<Rectangle2D> zones = computeOverflowZones(anchor, textHeight, valign);
+                boolean stillColliding = !zones.isEmpty() && findCollidingShape(zones, ts, allTextShapes) != null;
+
+                while (stillColliding && factor > MIN_SCALE && iter < MAX_ITER) {
+                    factor -= STEP;
+                    for (Map.Entry<XSLFTextRun, Double> e : baseline.entrySet()) {
+                        e.getKey().setFontSize(Math.max(1.0, e.getValue() * factor));
+                    }
+                    textHeight = ts.getTextHeight(graphics);
+                    zones = computeOverflowZones(anchor, textHeight, valign);
+                    stillColliding = !zones.isEmpty() && findCollidingShape(zones, ts, allTextShapes) != null;
+                    iter++;
+                    didShrink = true;
+                }
+
+                if (stillColliding) {
+                    // Meme une reduction jusqu'a la limite basse ne suffit pas a ecarter la
+                    // collision : la taille d'origine est restauree plutot que de produire
+                    // un texte ecrase qui chevauche quand meme la forme voisine.
+                    for (Map.Entry<XSLFTextRun, Double> e : baseline.entrySet()) {
+                        e.getKey().setFontSize(e.getValue());
+                    }
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("{} : aucun ajustement (complet ou partiel jusqu'a disparition de la collision) "
+                                + "n'a ete possible -> boite structurellement trop petite pour ce texte, taille "
+                                + "d'origine restauree", shape.getShapeName());
+                    }
+                    continue;
+                }
+                if (didShrink && LOG.isDebugEnabled()) {
+                    LOG.debug("{} : ajustement complet dans la boite impossible, retrecie a {}% seulement jusqu'a "
+                            + "disparition de la collision (hauteur texte {}pt, boite {}pt) - debordement residuel "
+                            + "au-dela de la boite accepte, comme le ferait PowerPoint pour ce mode noAutofit",
+                            shape.getShapeName(), Math.round(factor * 100), textHeight, anchor.getHeight());
+                }
+            }
+
             if (didShrink) {
                 count++;
                 if (LOG.isDebugEnabled()) {
@@ -163,6 +273,29 @@ public final class OverflowAwareTextFitter {
             }
         }
         return count;
+    }
+
+    /**
+     * Plus grande taille de police <em>declaree</em> (avant toute reduction)
+     * parmi les runs non vides de la forme, ou -1 si aucune n'a de taille
+     * explicite (heritee du theme/layout, non determinable ici sans parcourir
+     * la chaine d'heritage complete).
+     */
+    private static double maxDeclaredFontSize(XSLFTextShape ts) {
+        double max = -1;
+        for (XSLFTextParagraph para : ts.getTextParagraphs()) {
+            for (XSLFTextRun run : para.getTextRuns()) {
+                String text = run.getRawText();
+                if (text == null || text.isEmpty()) {
+                    continue;
+                }
+                Double size = run.getFontSize();
+                if (size != null && size > max) {
+                    max = size;
+                }
+            }
+        }
+        return max;
     }
 
     private static Map<XSLFTextRun, Double> captureBaselineFontSizes(XSLFTextShape ts) {
@@ -216,6 +349,16 @@ public final class OverflowAwareTextFitter {
      * n'occasionne aucune confusion visuelle.
      */
     static boolean overflowCollidesWithText(List<Rectangle2D> overflowZones, XSLFTextShape self, List<XSLFShape> allTextShapes) {
+        return findCollidingShape(overflowZones, self, allTextShapes) != null;
+    }
+
+    /**
+     * Comme {@link #overflowCollidesWithText}, mais retourne la forme
+     * responsable de la collision (ou {@code null}) plutot qu'un simple
+     * booleen - utilise pour enrichir les logs de diagnostic avec le nom de
+     * la forme en cause.
+     */
+    private static XSLFShape findCollidingShape(List<Rectangle2D> overflowZones, XSLFTextShape self, List<XSLFShape> allTextShapes) {
         for (Rectangle2D zone : overflowZones) {
             for (XSLFShape other : allTextShapes) {
                 if (other == self || !(other instanceof XSLFTextShape)) {
@@ -228,11 +371,11 @@ public final class OverflowAwareTextFitter {
                 }
                 Rectangle2D otherAnchor = ots.getAnchor();
                 if (otherAnchor != null && zone.intersects(otherAnchor)) {
-                    return true;
+                    return other;
                 }
             }
         }
-        return false;
+        return null;
     }
 
     /** Parcourt les formes du slide, y compris a l'interieur des groupes, et ne garde que celles porteuses de texte. */
