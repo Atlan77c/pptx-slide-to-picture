@@ -1,6 +1,7 @@
 package io.github.atlan77c.pptx2picture;
 
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
+import io.github.atlan77c.pptx2picture.internal.RoundedShapeAnchorFixer;
 import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
@@ -230,6 +231,14 @@ public final class PptxSlideRenderer {
         if (symbolRunsFixed > 0 && LOG.isDebugEnabled()) {
             LOG.debug("{} run(s) de police symbole (Wingdings/Webdings...) scinde(s) pour corriger du texte illisible (slide {})",
                     symbolRunsFixed, slideIndex);
+        }
+
+        // Avant OverflowAwareTextFitter : ce dernier lit ts.getVerticalAlignment() pour
+        // calculer ses zones de debordement, donc l'ancrage doit deja etre corrige a ce stade.
+        int anchorsFixed = RoundedShapeAnchorFixer.fixVerticalAnchor(slide);
+        if (anchorsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} forme(s) spAutoFit non rectangulaire(s) recentree(s) verticalement (slide {})",
+                    anchorsFixed, slideIndex);
         }
 
         if (options.isFixTextOverflow()) {
