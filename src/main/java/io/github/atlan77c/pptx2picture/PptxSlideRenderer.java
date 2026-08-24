@@ -1,6 +1,7 @@
-package io.github.atlan77c.pptx2image;
+package io.github.atlan77c.pptx2picture;
 
-import io.github.atlan77c.pptx2image.internal.OverflowAwareTextFitter;
+import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
+import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
@@ -63,8 +64,9 @@ import java.util.Objects;
  *       cas) par rapport au moteur de rendu natif de PowerPoint, ce qui peut faire
  *       deborder une zone de texte hors de sa boite.
  *       Corrige par defaut (voir {@link RenderOptions#isFixTextOverflow()}) en
- *       retrecissant la police des formes concernees, mais seulement lorsque ce
- *       debordement chevaucherait reellement une autre forme de texte voisine -
+ *       retrecissant la police des formes concernees ({@code NORMAL} et
+ *       {@code SHAPE} systematiquement, {@code NONE} uniquement lorsque le
+ *       debordement chevaucherait reellement une autre forme de texte voisine) -
  *       desactivable via {@link RenderOptions.Builder#fixTextOverflow(boolean)}.</li>
  *   <li><b>SVG : rendu du texte dependant des polices installees chez le lecteur</b> -
  *       voir {@link OutputFormat#SVG}.</li>
@@ -223,6 +225,12 @@ public final class PptxSlideRenderer {
         graphics.fill(new Rectangle2D.Float(0, 0, width, height));
         graphics.scale(scale, scale);
         graphics.fill(new Rectangle2D.Float(0, 0, pageSize.width, pageSize.height));
+
+        int symbolRunsFixed = SymbolFontRunFixer.fixMixedSymbolRuns(slide);
+        if (symbolRunsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} run(s) de police symbole (Wingdings/Webdings...) scinde(s) pour corriger du texte illisible (slide {})",
+                    symbolRunsFixed, slideIndex);
+        }
 
         if (options.isFixTextOverflow()) {
             int shrunk = OverflowAwareTextFitter.fitOverflowingText(slide, graphics);

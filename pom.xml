@@ -5,16 +5,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.Atlan77c</groupId>
-  <artifactId>pptx-slide-to-image</artifactId>
+  <artifactId>pptx-slide-to-picture</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
-  <name>pptx-slide-to-image</name>
+  <name>pptx-slide-to-picture</name>
   <description>
     Librairie Java pour convertir une slide d'un fichier PowerPoint (.pptx) en image (PNG, JPEG ou SVG),
     en pur Java via Apache POI et Apache Batik - sans dependance a LibreOffice, PowerPoint ou un navigateur headless.
   </description>
-  <url>https://github.com/Atlan77c/pptx-slide-to-image</url>
+  <url>https://github.com/Atlan77c/pptx-slide-to-picture</url>
 
   <licenses>
     <license>
@@ -71,6 +71,18 @@
     <dependency>
       <groupId>org.apache.xmlgraphics</groupId>
       <artifactId>batik-dom</artifactId>
+      <version>${batik.version}</version>
+    </dependency>
+    <!--
+      Requis pour embarquer les images bitmap (photos, icones...) d'une slide
+      dans le SVG produit (encodage base64) : sans ce module, Batik ne trouve
+      aucun ImageWriter enregistre pour PNG/JPEG et leve une NullPointerException
+      des qu'une slide contient une image. batik-svggen/batik-dom seuls suffisent
+      pour les formes vectorielles et le texte, mais pas pour les images.
+    -->
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-codec</artifactId>
       <version>${batik.version}</version>
     </dependency>
 

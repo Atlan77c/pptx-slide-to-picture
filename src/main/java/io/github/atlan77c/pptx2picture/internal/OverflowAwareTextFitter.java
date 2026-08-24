@@ -1,4 +1,4 @@
-package io.github.atlan77c.pptx2image.internal;
+package io.github.atlan77c.pptx2picture.internal;
 
 import org.apache.poi.sl.usermodel.TextShape;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
@@ -51,6 +51,19 @@ import java.util.Map;
  * (retrecissement automatique voulu par l'auteur du fichier) sont, elles,
  * toujours retrecies en cas de depassement reel - c'est le comportement
  * natif de PowerPoint pour ce type de forme.
+ *
+ * <p><b>Cas {@link TextShape.TextAutofit#SHAPE}</b> ("redimensionner la forme
+ * selon le texte", {@code spAutoFit} en OOXML) : traite comme {@code NORMAL}
+ * (retrecissement systematique de la police en cas de depassement mesure).
+ * Une premiere version agrandissait plutot la hauteur de l'anchor - fidele au
+ * sens strict de ce mode d'autofit dans PowerPoint (qui ne reduit jamais la
+ * police, la boite grandit) - mais observee en pratique sur un vrai fichier
+ * a provoquer de nouveaux chevauchements avec les formes voisines situees en
+ * dessous, puisque l'agrandissement deplace la limite basse de la boite sans
+ * tenir compte du reste de la mise en page. Retrecir la police laisse toutes
+ * les autres formes du slide a leur place d'origine : moins fidele au
+ * mecanisme technique de ce mode d'autofit, mais plus fidele au rendu global
+ * du diagramme, ce qui est le critere qui compte ici.
  */
 public final class OverflowAwareTextFitter {
 
@@ -60,6 +73,21 @@ public final class OverflowAwareTextFitter {
     private static final double STEP = 0.02;
     private static final double MIN_SCALE = 0.25;
     private static final int MAX_ITER = 38;
+
+    /**
+     * Marge de securite appliquee a la hauteur cible lors du retrecissement :
+     * on arrete de retrecir des que le texte mesure tient dans {@code anchor.getHeight() * SAFETY_MARGIN}
+     * plutot que dans {@code anchor.getHeight()} strictement. Sans cette marge, un cas reel
+     * (diagnostic sur un fichier de production - forme "spAutoFit" a 5 paragraphes, ecart de
+     * mesure de ~30% entre Java2D et PowerPoint, dans le haut de la fourchette deja documentee)
+     * a montre que le retrecissement s'arretait des que getTextHeight() repassait sous
+     * anchor.getHeight(), mais avec une marge residuelle de moins de 1pt sur ~74pt : largement
+     * insuffisant pour absorber a la fois l'epaisseur du trait de bordure de la forme et un
+     * eventuel ecart residuel entre la mesure de getTextHeight() et ce que slide.draw() peint
+     * reellement - le texte continuait donc a chevaucher visuellement la bordure malgre un
+     * retrecissement de police tres marque (jusqu'a -30% environ dans ce cas).
+     */
+    private static final double SAFETY_MARGIN = 0.97;
 
     private OverflowAwareTextFitter() {
     }
@@ -79,14 +107,12 @@ public final class OverflowAwareTextFitter {
         for (XSLFShape shape : allTextShapes) {
             XSLFTextShape ts = (XSLFTextShape) shape;
             TextShape.TextAutofit autofit = ts.getTextAutofit();
+            // NORMAL et SHAPE partagent la meme logique : PowerPoint ne montre jamais
+            // de debordement reel pour ces deux modes, donc tout debordement mesure ici
+            // est un artefact du calcul de metriques Java2D (jamais une intention de
+            // l'auteur) et est systematiquement corrige. NONE est le seul cas ou un
+            // debordement peut etre volontaire (voir "forced" ci-dessous).
             boolean forced = autofit == TextShape.TextAutofit.NONE;
-            if (autofit != TextShape.TextAutofit.NORMAL && !forced) {
-                // TextAutofit.SHAPE (la boite grandit pour epouser le texte) : rien
-                // a retrecir, le texte ne "deborde" jamais par construction. POI ne
-                // fait pas non plus grandir reellement la boite au rendu, mais ce
-                // n'est pas le probleme traite ici.
-                continue;
-            }
 
             Rectangle2D anchor = ts.getAnchor();
             if (anchor == null || anchor.getHeight() <= 0) {
@@ -115,8 +141,9 @@ public final class OverflowAwareTextFitter {
             int iter = 0;
             double textHeight = ts.getTextHeight(graphics);
             boolean didShrink = false;
+            double targetHeight = anchor.getHeight() * SAFETY_MARGIN;
 
-            while (textHeight > anchor.getHeight() && factor > MIN_SCALE && iter < MAX_ITER) {
+            while (textHeight > targetHeight && factor > MIN_SCALE && iter < MAX_ITER) {
                 factor -= STEP;
                 for (Map.Entry<XSLFTextRun, Double> e : baseline.entrySet()) {
                     e.getKey().setFontSize(Math.max(1.0, e.getValue() * factor));

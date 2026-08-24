@@ -1,5 +1,6 @@
-package io.github.atlan77c.pptx2image.internal;
+package io.github.atlan77c.pptx2picture.internal;
 
+import org.apache.poi.sl.usermodel.TextShape;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFShape;
@@ -9,7 +10,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 
@@ -119,5 +122,75 @@ class OverflowAwareTextFitterTest {
         List<Rectangle2D> overflow = List.of(new Rectangle2D.Double(0, 110, 200, 15));
 
         assertFalse(OverflowAwareTextFitter.overflowCollidesWithText(overflow, self, all));
+    }
+
+    @Test
+    void fitOverflowingText_shapeAutofit_shrinksFontInsteadOfGrowingAnchor() throws IOException {
+        // Anchor volontairement minuscule (5pt) et police large (60pt) : garantit un
+        // debordement massif quelle que soit la police reellement resolue sur la
+        // machine d'execution (le point teste ici est la strategie de correction,
+        // pas la precision des metriques - voir le commentaire de classe).
+        //
+        // autofit=SHAPE est traite comme NORMAL (retrecissement systematique) plutot
+        // que par agrandissement de la boite : une premiere version agrandissait
+        // l'anchor, plus fidele au sens strict de cet autofit, mais observee en
+        // pratique sur un vrai fichier a provoquer de nouveaux chevauchements avec les
+        // formes voisines situees en dessous de la boite agrandie.
+        XSLFTextBox box = textBox(10, 20, 300, 5, "Texte qui necessite bien plus de place que 5pt de haut");
+        box.setTextAutofit(TextShape.TextAutofit.SHAPE);
+        box.getTextParagraphs().get(0).getTextRuns().get(0).setFontSize(60.0);
+
+        BufferedImage img = new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = img.createGraphics();
+        try {
+            Rectangle2D originalAnchor = box.getAnchor();
+            double measuredTextHeight = box.getTextHeight(graphics);
+            assertTrue(measuredTextHeight > originalAnchor.getHeight(), "precondition du test : le texte doit deborder de l'anchor d'origine");
+
+            int changed = OverflowAwareTextFitter.fitOverflowingText(slide, graphics);
+
+            assertEquals(1, changed);
+            Rectangle2D anchorAfter = box.getAnchor();
+            assertEquals(originalAnchor.getX(), anchorAfter.getX(), 0.001, "la position X ne doit pas changer");
+            assertEquals(originalAnchor.getY(), anchorAfter.getY(), 0.001, "la position Y ne doit pas changer");
+            assertEquals(originalAnchor.getWidth(), anchorAfter.getWidth(), 0.001, "la largeur ne doit pas changer");
+            assertEquals(originalAnchor.getHeight(), anchorAfter.getHeight(), 0.001,
+                    "la hauteur de l'anchor ne doit pas changer non plus - seule la police est retrecie");
+
+            Double fontSizeAfter = box.getTextParagraphs().get(0).getTextRuns().get(0).getFontSize();
+            assertTrue(fontSizeAfter < 60.0, "la police doit avoir ete retrecie sous sa taille d'origine (60pt)");
+        } finally {
+            graphics.dispose();
+        }
+    }
+
+    @Test
+    void fitOverflowingText_appliesSafetyMarginBelowAnchorHeight_notJustStrictlyUnder() throws IOException {
+        // Reproduit le cas reel diagnostique sur le fichier de test reel (voir conversion_pptx_vers_images.md,
+        // section 8) : une forme spAutoFit calibree tres exactement par PowerPoint (aucune marge
+        // native) pour laquelle un retrecissement qui viserait anchor.getHeight() au plus juste
+        // laisse une marge residuelle de moins d'1pt - insuffisante face a l'epaisseur du trait de
+        // bordure de la forme. Le correctif retenu vise desormais une hauteur legerement inferieure
+        // a l'anchor (marge de securite), verifiee ici geometriquement plutot que visuellement.
+        XSLFTextBox box = textBox(10, 20, 300, 50, "Texte assez long pour deborder legerement de sa boite d'origine et necessiter un retrecissement mesurable");
+        box.setTextAutofit(TextShape.TextAutofit.SHAPE);
+        box.getTextParagraphs().get(0).getTextRuns().get(0).setFontSize(30.0);
+
+        BufferedImage img = new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = img.createGraphics();
+        try {
+            Rectangle2D anchor = box.getAnchor();
+            double measuredTextHeight = box.getTextHeight(graphics);
+            assertTrue(measuredTextHeight > anchor.getHeight(), "precondition du test : le texte doit deborder de l'anchor d'origine");
+
+            int changed = OverflowAwareTextFitter.fitOverflowingText(slide, graphics);
+            assertEquals(1, changed);
+
+            double textHeightAfter = box.getTextHeight(graphics);
+            assertTrue(textHeightAfter < anchor.getHeight(),
+                    "le texte retreci doit tenir strictement sous la hauteur de l'anchor (pas seulement <=)");
+        } finally {
+            graphics.dispose();
+        }
     }
 }

@@ -1,4 +1,4 @@
-# pptx-slide-to-image
+# pptx-slide-to-picture
 
 Librairie Java pour convertir une slide d'un fichier PowerPoint (`.pptx`) en image (PNG, JPEG ou SVG), en pur Java via [Apache POI](https://poi.apache.org/) (rendu raster) et [Apache Batik](https://xmlgraphics.apache.org/batik/) (rendu vectoriel SVG) — **sans dépendance à LibreOffice, à PowerPoint (automatisation COM) ni à un navigateur headless**.
 
@@ -15,7 +15,7 @@ Puis dans le `pom.xml` de votre projet :
 ```xml
 <dependency>
   <groupId>io.github.Atlan77c</groupId>
-  <artifactId>pptx-slide-to-image</artifactId>
+  <artifactId>pptx-slide-to-picture</artifactId>
   <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -23,9 +23,9 @@ Puis dans le `pom.xml` de votre projet :
 ## Utilisation
 
 ```java
-import io.github.atlan77c.pptx2image.OutputFormat;
-import io.github.atlan77c.pptx2image.PptxSlideRenderer;
-import io.github.atlan77c.pptx2image.RenderOptions;
+import io.github.atlan77c.pptx2picture.OutputFormat;
+import io.github.atlan77c.pptx2picture.PptxSlideRenderer;
+import io.github.atlan77c.pptx2picture.RenderOptions;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -65,7 +65,9 @@ int count = PptxSlideRenderer.getSlideCount(new File("presentation.pptx"));
 Le texte, les formes vectorielles, les images et les tableaux natifs sont rendus fidèlement. Limites documentées :
 
 - **Les graphiques intégrés (Excel / `XSLFChart`) ne sont pas rendus** par Apache POI — un espace vide apparaît à leur emplacement. C'est une limitation connue d'Apache POI (voir [BUGZILLA-60201](https://bz.apache.org/bugzilla/show_bug.cgi?id=60201)), pas de ce projet. Contournement envisageable (non implémenté ici) : extraire les données du graphique via l'API `XSLFChart`/`XDDFChart` et le redessiner séparément avec une bibliothèque de graphiques Java pure (ex. [JFreeChart](https://www.jfree.org/jfreechart/)).
-- **Écart de métriques de police** : pour certaines polices, Java2D/AWT peut surestimer la hauteur de texte nécessaire par rapport au moteur de rendu natif de PowerPoint (jusqu'à ~30-35% observé dans certains cas), ce qui peut faire déborder une zone de texte hors de sa boîte et chevaucher une forme voisine. **Corrigé par défaut** (`RenderOptions.fixTextOverflow(true)`, activé par défaut) : la police des formes concernées est réduite, mais uniquement lorsque le débordement chevaucherait réellement une autre forme de texte — les formes qui débordent "sur le papier" sans risque de collision visuelle ne sont pas touchées, pour rester le plus fidèle possible à la mise en page d'origine. Désactivable via `RenderOptions.builder().fixTextOverflow(false)`.
+- **Écart de métriques de police** : pour certaines polices, Java2D/AWT peut surestimer la hauteur de texte nécessaire par rapport au moteur de rendu natif de PowerPoint (jusqu'à ~30-35% observé dans certains cas — confirmé et quantifié précisément à ~30% sur un fichier réel via un diagnostic dédié, y compris pour une police custom correctement installée et correctement résolue par AWT sous son propre nom), ce qui peut faire déborder une zone de texte hors de sa boîte et chevaucher une forme voisine. **Corrigé par défaut** (`RenderOptions.fixTextOverflow(true)`, activé par défaut) en réduisant la police des formes concernées, différemment selon le mode d'ajustement automatique (`autofit`) configuré sur la forme dans le fichier source : les formes en retrécissement de police (`normAutofit`) ou en "redimensionner la forme selon le texte" (`spAutoFit`) sont systématiquement corrigées (dans les deux cas, PowerPoint ne montre jamais de vrai débordement, donc tout débordement mesuré ici est un artefact du calcul — voir note ci-dessous pour `spAutoFit`) ; les formes sans ajustement (`noAutofit`) ne sont réduites que lorsque le débordement chevaucherait réellement une autre forme de texte, pour rester fidèle aux chevauchements volontaires de l'auteur. Le retrécissement vise une hauteur cible légèrement sous la hauteur réelle de la boîte (marge de sécurité de 3%), pour absorber l'épaisseur du trait de bordure de la forme et un éventuel écart résiduel entre la mesure utilisée pour piloter le correctif et le rendu final — sans cette marge, un cas réel a montré un texte encore visuellement au ras de la bordure malgré une police fortement réduite. Désactivable via `RenderOptions.builder().fixTextOverflow(false)`.
+
+  *Note sur `spAutoFit`* : dans PowerPoint, ce mode fait grandir la boîte plutôt que réduire la police — une première version de ce correctif reproduisait ce comportement en agrandissant la boîte, mais cela s'est révélé provoquer de nouveaux chevauchements avec les formes voisines sur des documents réels (l'agrandissement ne tient pas compte du reste de la mise en page). Réduire la police à la place laisse toutes les autres formes du slide à leur position d'origine : moins fidèle au mécanisme technique de cet autofit, mais plus fidèle au rendu global du diagramme.
 - **SVG : rendu du texte dépendant des polices installées chez le lecteur** — contrairement au PNG/JPEG (où les glyphes sont figés en pixels à la génération), le SVG produit des éléments `<text>` portant le nom de la police d'origine. Le résultat visuel final (empattement, chasse des caractères) dépend donc des polices disponibles sur la machine ou le navigateur qui affiche le fichier — s'assurer que les polices utilisées dans le `.pptx` source sont bien installées côté lecteur pour un rendu fidèle.
 
 ## Build

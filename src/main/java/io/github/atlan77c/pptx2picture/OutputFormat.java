@@ -1,4 +1,4 @@
-package io.github.atlan77c.pptx2image;
+package io.github.atlan77c.pptx2picture;
 
 /**
  * Formats de sortie supportes par {@link PptxSlideRenderer#renderSlideToFile(java.io.File, int, java.io.File, RenderOptions)}

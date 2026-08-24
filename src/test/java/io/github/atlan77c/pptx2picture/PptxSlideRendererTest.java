@@ -1,4 +1,4 @@
-package io.github.atlan77c.pptx2image;
+package io.github.atlan77c.pptx2picture;
 
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;

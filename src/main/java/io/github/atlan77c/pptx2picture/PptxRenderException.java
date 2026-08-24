@@ -1,4 +1,4 @@
-package io.github.atlan77c.pptx2image;
+package io.github.atlan77c.pptx2picture;
 
 /**
  * Erreur levee lorsque la conversion d'une slide pptx en image echoue :

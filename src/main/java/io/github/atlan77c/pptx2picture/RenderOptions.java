@@ -1,4 +1,4 @@
-package io.github.atlan77c.pptx2image;
+package io.github.atlan77c.pptx2picture;
 
 import java.awt.Color;
 import java.util.Objects;
