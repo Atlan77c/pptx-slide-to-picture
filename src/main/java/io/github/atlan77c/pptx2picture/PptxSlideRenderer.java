@@ -3,6 +3,7 @@ package io.github.atlan77c.pptx2picture;
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
 import io.github.atlan77c.pptx2picture.internal.RoundedShapeAnchorFixer;
 import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
+import io.github.atlan77c.pptx2picture.internal.TitleRepainter;
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
@@ -249,6 +250,15 @@ public final class PptxSlideRenderer {
         }
 
         slide.draw(graphics);
+
+        // Apres slide.draw(graphics), a l'inverse des correctifs precedents : il ne
+        // s'agit pas ici de corriger l'etat d'une forme avant le dessin, mais de
+        // repeindre certaines formes PAR-DESSUS un dessin deja termine (voir Javadoc
+        // de TitleRepainter).
+        int titlesRepainted = TitleRepainter.repaintTitles(slide, graphics);
+        if (titlesRepainted > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} titre(s) repeint(s) au premier plan (slide {})", titlesRepainted, slideIndex);
+        }
     }
 
     /**
