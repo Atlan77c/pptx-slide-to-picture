@@ -20,11 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Reproduit le motif observe sur le slide 30 du fichier reel (voir
- * conversion_pptx_vers_images.md) : une zone de texte {@code spAutoFit} dont
- * le contour a ete change en ellipse (via "Modifier la forme" dans
- * PowerPoint), sans ancrage vertical explicite - le texte apparaissait
- * colle en haut de la forme au lieu d'etre centre.
+ * Reproduit le motif observe sur un fichier reel : une zone de texte
+ * {@code spAutoFit} dont le contour a ete change en ellipse (via "Modifier la
+ * forme" dans PowerPoint), sans ancrage vertical explicite - le texte
+ * apparaissait colle en haut de la forme au lieu d'etre centre.
  */
 class RoundedShapeAnchorFixerTest {
 
@@ -46,7 +45,7 @@ class RoundedShapeAnchorFixerTest {
     void fixVerticalAnchor_forcesMiddle_forNonRectangularSpAutoFitShapeWithoutExplicitAnchor() {
         XSLFAutoShape ellipse = slide.createAutoShape();
         ellipse.setShapeType(ShapeType.ELLIPSE);
-        ellipse.setText("Affectation restreinte au conseiller TH");
+        ellipse.setText("Texte dans une zone redimensionnee en ellipse");
         ellipse.setTextAutofit(TextShape.TextAutofit.SHAPE);
 
         // Preconditions verifiees explicitement (plutot que suppposees) : un fichier
@@ -63,7 +62,7 @@ class RoundedShapeAnchorFixerTest {
         if (bodyPr.isSetAnchor()) {
             bodyPr.unsetAnchor();
         }
-        assertFalse(bodyPr.isSetAnchor(), "precondition : aucun ancrage vertical explicite (motif reel du slide 30)");
+        assertFalse(bodyPr.isSetAnchor(), "precondition : aucun ancrage vertical explicite (motif observe sur un fichier reel)");
 
         int fixed = RoundedShapeAnchorFixer.fixVerticalAnchor(slide);
 

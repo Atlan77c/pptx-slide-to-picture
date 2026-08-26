@@ -24,9 +24,8 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Reproduit le motif observe sur le slide 40 du fichier reel (voir
- * conversion_pptx_vers_images.md) : un titre partiellement recouvert par une
- * image voisine peinte apres lui dans l'ordre du document.
+ * Reproduit le motif observe sur un fichier reel : un titre partiellement
+ * recouvert par une image voisine peinte apres lui dans l'ordre du document.
  */
 class TitleRepainterTest {
 
@@ -73,8 +72,9 @@ class TitleRepainterTest {
 
     @Test
     void repaintTitles_repaintsPlainTextBoxNamedAfterTitleInAnySupportedLanguage() {
-        // Motif reel des slides 5 et 40 : un titre dissocie de son placeholder,
-        // reconnaissable uniquement par son nom ("Titre N" et equivalents).
+        // Motif reel observe sur un fichier de production : un titre dissocie
+        // de son placeholder, reconnaissable uniquement par son nom ("Titre N"
+        // et equivalents).
         String[] names = {"Titre 3", "Title 2", "Título 1", "Titolo 4", "Titel 5"};
         for (String name : names) {
             ppt = new XMLSlideShow();
@@ -115,7 +115,7 @@ class TitleRepainterTest {
 
     @Test
     void repaintTitles_leavesNonTextShapesUntouched() throws IOException {
-        // Une image nommee "Image 24" (motif reel du slide 40) ne doit jamais
+        // Une image nommee comme un titre (motif reel observe) ne doit jamais
         // etre consideree comme un titre, quel que soit son nom.
         byte[] onePixelPng = onePixelPng();
         XSLFPictureData pictureData = ppt.addPicture(onePixelPng, PictureData.PictureType.PNG);

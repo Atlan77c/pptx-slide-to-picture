@@ -12,16 +12,16 @@ import java.awt.Graphics2D;
 import java.util.List;
 
 /**
- * Corrige un ecart de fidelite decouvert sur un vrai fichier (slide 40) : un
- * titre partiellement recouvert par une image voisine (ex. {@code "Titre 3"}
- * recouvert par {@code "Image 24"}), alors que dans PowerPoint le titre reste
+ * Corrige un ecart de fidelite decouvert sur un fichier reel : un titre
+ * partiellement recouvert par une image ou une forme voisine peinte apres lui
+ * dans l'ordre du document, alors que dans PowerPoint le titre reste
  * entierement lisible.
  *
  * <p><b>Analyse</b> : l'ordre de peinture (ordre des formes dans le XML,
  * {@code spTree}) est identique entre PowerPoint et Apache POI - ce n'est
  * donc pas un probleme d'ordre de premier plan/arriere-plan mal reproduit.
  * Le chevauchement lui-meme preexiste dans le fichier source (l'ancrage du
- * titre et celui de l'image se recouvrent deja legerement, ~16.6pt, avant
+ * titre et celui de la forme voisine se recouvrent deja legerement, avant
  * meme tout rendu). Ce qui "s'aggrave" au rendu est, comme pour
  * {@link OverflowAwareTextFitter}, l'ecart recurrent de metrique de police
  * entre Java2D/AWT et le moteur de rendu de PowerPoint (jusqu'a ~30-35%
@@ -30,7 +30,7 @@ import java.util.List;
  * de texte, donc {@link OverflowAwareTextFitter} reste totalement passif sur
  * cette forme), l'etendue verticale reellement occupee par le texte rendu,
  * sous un ancrage Haut, peut etre plus grande chez nous que chez PowerPoint -
- * poussant davantage de glyphes dans la zone deja recouverte par l'image
+ * poussant davantage de glyphes dans la zone deja recouverte par la forme
  * peinte apres le titre dans l'ordre du document.
  *
  * <p><b>Correctif retenu</b> : repeindre systematiquement chaque forme de
@@ -49,9 +49,9 @@ import java.util.List;
  * un auteur peut, dans PowerPoint, dissocier un titre de son placeholder (le
  * remplacer par une simple zone de texte, ex. via un copier-coller ou une
  * reorganisation manuelle) tout en conservant le nom "Titre N" affiche dans
- * le volet Selection - c'est le cas observe sur les slides 5 ("Titre 2") et
- * 40 ("Titre 3") du fichier reel (seul le slide 30, "Titre 1", a conserve son
- * lien de placeholder). Dans ce cas, on se rabat sur le prefixe du nom de la
+ * le volet Selection - ce cas a ete observe sur plusieurs slides d'un fichier
+ * reel (un titre dissocie de son placeholder cote a cote avec un autre resté
+ * lie a son placeholder). Dans ce cas, on se rabat sur le prefixe du nom de la
  * forme, teste insensible a la casse contre une liste de prefixes connus dans
  * plusieurs langues (voir {@link #TITLE_NAME_PREFIXES}).
  *

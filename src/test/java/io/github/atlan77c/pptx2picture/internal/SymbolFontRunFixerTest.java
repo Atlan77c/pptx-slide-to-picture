@@ -24,18 +24,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Reproduit le motif observe dans un fichier reel (voir conversion_pptx_vers_images.md,
- * section 8) : un run unique portant {@code <a:sym typeface="Wingdings">} sans
- * {@code <a:latin>}, dont le texte melange un caractere de la zone d'usage
- * prive Unicode (celui destine a Wingdings) et du texte normal accole juste
- * apres. Les fixtures construisent ce motif directement via l'API XML sous-jacente
- * de POI (pas d'API haut niveau publique pour poser un {@code <a:sym>}), exactement
- * comme le ferait un fichier .pptx exporte par PowerPoint.
+ * Reproduit le motif observe dans un fichier reel : un run unique portant
+ * {@code <a:sym typeface="Wingdings">} sans {@code <a:latin>}, dont le texte
+ * melange un caractere de la zone d'usage prive Unicode (celui destine a
+ * Wingdings) et du texte normal accole juste apres. Les fixtures construisent
+ * ce motif directement via l'API XML sous-jacente de POI (pas d'API haut
+ * niveau publique pour poser un {@code <a:sym>}), exactement comme le ferait
+ * un fichier .pptx exporte par PowerPoint.
  */
 class SymbolFontRunFixerTest {
 
-    /** U+F0E8 = fleche Wingdings dans la zone d'usage prive Unicode - exactement le caractere observe dans le fichier reel. */
-    private static final String WINGDINGS_ARROW = "\uF0E8";
+    /** U+F0E8 = fleche Wingdings dans la zone d'usage prive Unicode - exactement le caractere observe dans un fichier reel. */
+    private static final String WINGDINGS_ARROW = "";
 
     private XMLSlideShow ppt;
     private XSLFSlide slide;
@@ -117,24 +117,23 @@ class SymbolFontRunFixerTest {
 
     @Test
     void fixMixedSymbolRuns_fixesSymbolTaintedZoneSpanningMultipleTrailingRuns() {
-        // Reproduit exactement le motif observe sur le slide 10 du fichier reel
-        // (voir conversion_pptx_vers_images.md, section 8) : la police sym reste
-        // active sur PLUSIEURS runs consecutifs jusqu'a la fin du paragraphe, y
-        // compris des runs qui ne contiennent aucun caractere symbole du tout
-        // (ex. "CapE" scinde dans son propre run par la verification
-        // orthographique de PowerPoint, mais tague sym quand meme).
+        // Reproduit exactement un motif observe sur un fichier reel : la police
+        // sym reste active sur PLUSIEURS runs consecutifs jusqu'a la fin du
+        // paragraphe, y compris des runs qui ne contiennent aucun caractere
+        // symbole du tout (ex. un mot isole scinde dans son propre run par la
+        // verification orthographique de PowerPoint, mais tague sym quand meme).
         XSLFTextBox box = slide.createTextBox();
         box.setAnchor(new Rectangle2D.Double(10, 10, 400, 150));
         XSLFTextParagraph para = box.addNewTextParagraph();
 
-        addPlainRun(para, "Aujourd’hui, Cap Emploi est rattache aux agences FT donc pas de possibilite d’affectation a la structure ");
-        addPlainRun(para, "CapE");
+        addPlainRun(para, "Un texte assez long qui se termine par un mot isole : ");
+        addPlainRun(para, "Contoso");
         addPlainRun(para, " ");
-        XSLFTextRun mixed = addPlainRun(para, WINGDINGS_ARROW + " proposition MPA : distinguer l’organisme (");
+        XSLFTextRun mixed = addPlainRun(para, WINGDINGS_ARROW + " voir la proposition : distinguer l'entite (");
         applyMixedSymbolFont(mixed);
-        XSLFTextRun tail1 = addPlainRun(para, "CapE");
+        XSLFTextRun tail1 = addPlainRun(para, "Contoso");
         applyMixedSymbolFont(tail1);
-        XSLFTextRun tail2 = addPlainRun(para, " ou FT) ?");
+        XSLFTextRun tail2 = addPlainRun(para, " ou l'autre) ?");
         applyMixedSymbolFont(tail2);
 
         String fullTextBefore = concatText(para);
@@ -183,16 +182,15 @@ class SymbolFontRunFixerTest {
         // XSLFTextShape - c'est une forme a part, dont les cellules ne sont
         // accessibles que via table.getRows()/row.getCells(). Sans le cas
         // particulier ajoute dans collectTextShapes(), tout texte dans un
-        // tableau (constate sur le tableau du slide 43 du fichier reel, cf.
-        // conversion_pptx_vers_images.md section 8) etait completement ignore
-        // par le correctif, meme si le run etait par ailleurs un cas simple
-        // deja gere (mixte, dernier run du paragraphe).
+        // tableau (constate sur un tableau d'un fichier reel) etait
+        // completement ignore par le correctif, meme si le run etait par
+        // ailleurs un cas simple deja gere (mixte, dernier run du paragraphe).
         XSLFTable table = slide.createTable();
         XSLFTableRow row = table.addRow();
         XSLFTableCell cell = row.addCell();
         XSLFTextParagraph para = cell.addNewTextParagraph();
         XSLFTextRun run = para.addNewTextRun();
-        run.setText(WINGDINGS_ARROW + " modifie par conseiller ou MDPH");
+        run.setText(WINGDINGS_ARROW + " modifie par relecture manuelle");
         applyMixedSymbolFont(run);
 
         int fixed = SymbolFontRunFixer.fixMixedSymbolRuns(slide);
@@ -201,7 +199,7 @@ class SymbolFontRunFixerTest {
         List<XSLFTextRun> runsAfter = para.getTextRuns();
         assertEquals(2, runsAfter.size(), "le run mixte de la cellule doit avoir ete scinde en 2");
         assertEquals(WINGDINGS_ARROW, runsAfter.get(0).getRawText());
-        assertEquals(" modifie par conseiller ou MDPH", runsAfter.get(1).getRawText());
+        assertEquals(" modifie par relecture manuelle", runsAfter.get(1).getRawText());
 
         CTRegularTextRun ctText = (CTRegularTextRun) runsAfter.get(1).getXmlObject();
         assertFalse(ctText.getRPr() != null && ctText.getRPr().isSetSym(),
@@ -218,7 +216,7 @@ class SymbolFontRunFixerTest {
         // normal n'a pas de police symbole.
         XSLFTextBox box = textBox(WINGDINGS_ARROW + " texte normal");
         XSLFTextRun run = box.getTextParagraphs().get(0).getTextRuns().get(0);
-        run.setFontFamily("PoliceX Light");
+        run.setFontFamily("Custom Sans");
         applyMixedSymbolFont(run);
 
         int fixed = SymbolFontRunFixer.fixMixedSymbolRuns(slide);

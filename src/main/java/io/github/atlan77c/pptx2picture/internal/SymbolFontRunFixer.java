@@ -33,19 +33,19 @@ import java.util.List;
  * tout le texte concerne se retrouve rendu comme une suite de symboles
  * illisibles au lieu du texte attendu.
  *
- * <p><b>Deux variantes du meme motif ont ete observees dans le fichier reel</b> :
+ * <p><b>Deux variantes du meme motif ont ete observees dans un fichier reel</b> :
  * <ol>
  *   <li>un run UNIQUE melange caractere symbole et texte normal
- *       (ex. {@code " modifier les conditions d'acces..."}) ;</li>
+ *       (ex. {@code " modifier les conditions d'acces..."}) ;</li>
  *   <li>PLUS surprenant : la police sym reste active sur PLUSIEURS runs
  *       consecutifs jusqu'a la fin du paragraphe, y compris des runs qui ne
- *       contiennent aucun caractere symbole du tout (ex. le mot {@code "CapE"}
- *       isole dans son propre run par la verification orthographique de
- *       PowerPoint, mais qui herite quand meme du {@code <a:sym>} pose au
- *       moment de la frappe du caractere special juste avant). Une premiere
- *       version de ce correctif ne traitait que le cas (1) et seulement quand
- *       le run mixte etait le DERNIER run du paragraphe - trop restrictif :
- *       elle laissait ce cas (2) totalement intact.</li>
+ *       contiennent aucun caractere symbole du tout (ex. un mot isole dans
+ *       son propre run par la verification orthographique de PowerPoint, mais
+ *       qui herite quand meme du {@code <a:sym>} pose au moment de la frappe
+ *       du caractere special juste avant). Une premiere version de ce
+ *       correctif ne traitait que le cas (1) et seulement quand le run mixte
+ *       etait le DERNIER run du paragraphe - trop restrictif : elle laissait
+ *       ce cas (2) totalement intact.</li>
  * </ol>
  *
  * <p><b>Correctif</b> : avant le rendu, on repere pour chaque paragraphe le
@@ -69,10 +69,10 @@ import java.util.List;
  *
  * <p><b>Limite assumee</b> : si un run plus loin dans le paragraphe n'a pas du
  * tout de police sym, la zone n'atteint pas la fin du paragraphe - motif
- * different, non observe a ce jour dans le fichier reel, on laisse alors tout
- * le paragraphe intact plutot que de risquer de corrompre l'ordre du texte
- * ({@code addNewTextRun()} ne peut qu'ajouter en fin de paragraphe, donc une
- * insertion "au milieu" n'est pas possible sans ce risque).
+ * different, non observe a ce jour, on laisse alors tout le paragraphe intact
+ * plutot que de risquer de corrompre l'ordre du texte ({@code addNewTextRun()}
+ * ne peut qu'ajouter en fin de paragraphe, donc une insertion "au milieu"
+ * n'est pas possible sans ce risque).
  *
  * <p>Une premiere version de ce correctif manipulait directement l'arbre XML
  * sous-jacent ({@code CTTextParagraph.insertNewR()}/{@code removeR()}) : les
@@ -293,9 +293,8 @@ public final class SymbolFontRunFixer {
      * ni un {@code XSLFTextShape} - c'est une forme a part, dont les cellules
      * ({@code XSLFTableCell}, qui EST un {@code XSLFTextShape}) ne sont
      * accessibles que via {@code table.getRows()} / {@code row.getCells()}.
-     * Sans ce cas particulier, tout texte dans un tableau (constate sur le
-     * slide 43 du fichier reel, cf. conversion_pptx_vers_images.md section 8)
-     * etait completement ignore par le correctif.
+     * Sans ce cas particulier, tout texte dans un tableau (constate sur un
+     * fichier reel) etait completement ignore par le correctif.
      */
     private static List<XSLFShape> collectTextShapes(List<XSLFShape> shapes) {
         List<XSLFShape> result = new ArrayList<>();

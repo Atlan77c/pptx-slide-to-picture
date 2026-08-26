@@ -20,17 +20,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Corrige un ecart de rendu decouvert sur un vrai fichier (slide 30) : du
- * texte affiche colle en haut d'une forme au lieu d'etre centre
- * verticalement, alors que la forme est bien {@code spAutoFit}
- * ("redimensionner la forme selon le texte").
+ * Corrige un ecart de rendu decouvert sur un fichier reel : du texte affiche
+ * colle en haut d'une forme au lieu d'etre centre verticalement, alors que la
+ * forme est bien {@code spAutoFit} ("redimensionner la forme selon le texte").
  *
  * <p><b>Motif observe</b> : une zone de texte (souvent creee via Insertion
  * &gt; Zone de texte, {@code cNvSpPr txBox="1"}) a vu son contour change en
  * une geometrie non rectangulaire (ex. {@code prstGeom prst="ellipse"}, via
- * "Modifier la forme" dans PowerPoint) - deux exemples reels : {@code ZoneTexte 160}
- * ("Affectation restreinte au conseiller TH") et {@code ZoneTexte 195} ("Pas
- * d'affectation autre que FT ou CapE"). Son {@code bodyPr} ne declare aucun
+ * "Modifier la forme" dans PowerPoint). Son {@code bodyPr} ne declare aucun
  * {@code anchor} explicite - valeur par defaut OOXML "Haut", normalement sans
  * consequence visuelle pour une forme {@code spAutoFit} puisque PowerPoint
  * redimensionne la boite pour epouser exactement le texte (aucun espace

@@ -136,7 +136,7 @@ class OverflowAwareTextFitterTest {
         // autofit=SHAPE est traite comme NORMAL (retrecissement systematique) plutot
         // que par agrandissement de la boite : une premiere version agrandissait
         // l'anchor, plus fidele au sens strict de cet autofit, mais observee en
-        // pratique sur un vrai fichier a provoquer de nouveaux chevauchements avec les
+        // pratique sur un fichier reel a provoquer de nouveaux chevauchements avec les
         // formes voisines situees en dessous de la boite agrandie.
         XSLFTextBox box = textBox(10, 20, 300, 5, "Texte qui necessite bien plus de place que 5pt de haut");
         box.setTextAutofit(TextShape.TextAutofit.SHAPE);
@@ -168,8 +168,7 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_neverForcesShrink_whenDeclaredFontSizeAloneExceedsAnchorHeight() throws IOException {
-        // Reproduit le motif observe sur le slide 21 du fichier reel (voir
-        // conversion_pptx_vers_images.md, section 8) : un caractere decoratif
+        // Reproduit un motif observe sur un fichier reel : un caractere decoratif
         // unique ("*") en 72pt dans une boite noAutofit de ~40pt de haut,
         // chevauchant deliberement une forme voisine toute proche - exactement
         // comme PowerPoint l'affiche (l'auteur a choisi une police enorme dans
@@ -183,7 +182,7 @@ class OverflowAwareTextFitterTest {
         star.setTextAutofit(TextShape.TextAutofit.NONE);
         star.getTextParagraphs().get(0).getTextRuns().get(0).setFontSize(72.0);
 
-        XSLFTextBox neighbour = textBox(0, 130, 200, 50, "Identification - Creation");
+        XSLFTextBox neighbour = textBox(0, 130, 200, 50, "Forme voisine avec du texte visible");
 
         BufferedImage img = new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = img.createGraphics();
@@ -209,12 +208,13 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_appliesSafetyMarginBelowAnchorHeight_notJustStrictlyUnder() throws IOException {
-        // Reproduit le cas reel diagnostique sur le fichier de test reel (voir conversion_pptx_vers_images.md,
-        // section 8) : une forme spAutoFit calibree tres exactement par PowerPoint (aucune marge
-        // native) pour laquelle un retrecissement qui viserait anchor.getHeight() au plus juste
-        // laisse une marge residuelle de moins d'1pt - insuffisante face a l'epaisseur du trait de
-        // bordure de la forme. Le correctif retenu vise desormais une hauteur legerement inferieure
-        // a l'anchor (marge de securite), verifiee ici geometriquement plutot que visuellement.
+        // Reproduit un cas reel diagnostique : une forme spAutoFit calibree tres
+        // exactement par PowerPoint (aucune marge native) pour laquelle un
+        // retrecissement qui viserait anchor.getHeight() au plus juste laisse une
+        // marge residuelle de moins d'1pt - insuffisante face a l'epaisseur du
+        // trait de bordure de la forme. Le correctif retenu vise desormais une
+        // hauteur legerement inferieure a l'anchor (marge de securite), verifiee
+        // ici geometriquement plutot que visuellement.
         XSLFTextBox box = textBox(10, 20, 300, 50, "Texte assez long pour deborder legerement de sa boite d'origine et necessiter un retrecissement mesurable");
         box.setTextAutofit(TextShape.TextAutofit.SHAPE);
         box.getTextParagraphs().get(0).getTextRuns().get(0).setFontSize(30.0);
@@ -239,17 +239,17 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_restoresOriginalSize_whenForcedShrinkNeverConverges() throws IOException {
-        // Reproduit le motif observe sur le slide 5 du fichier reel (voir
-        // conversion_pptx_vers_images.md) : une boite noAutofit bien plus petite que
-        // son contenu (ici 20 courtes lignes a 14pt dans une boite de seulement 20pt de
-        // haut), avec une forme voisine assez proche pour que la zone de debordement
-        // mesuree la chevauche -> collision "reelle" detectee, retrecissement force
-        // declenche. Contrairement au cas ZoneTexte 23 (converge proprement a 78%, voir
-        // le test appliesSafetyMarginBelowAnchorHeight ci-dessus), aucune reduction de
-        // police plausible ne peut faire tenir 20 lignes dans 20pt : meme ecrasee
-        // jusqu'a MIN_SCALE (25%) ou MAX_ITER iterations, le texte deborde toujours trop
-        // largement. C'est le signal retenu pour distinguer un veritable artefact de
-        // mesure (Java2D/PowerPoint) d'une boite structurellement trop petite pour son
+        // Reproduit un motif observe sur un fichier reel : une boite noAutofit
+        // bien plus petite que son contenu (ici 20 courtes lignes a 14pt dans une
+        // boite de seulement 20pt de haut), avec une forme voisine assez proche
+        // pour que la zone de debordement mesuree la chevauche -> collision
+        // "reelle" detectee, retrecissement force declenche. Contrairement au cas
+        // couvert par le test appliesSafetyMarginBelowAnchorHeight ci-dessus (qui
+        // converge proprement), aucune reduction de police plausible ne peut faire
+        // tenir 20 lignes dans 20pt : meme ecrasee jusqu'a MIN_SCALE (25%) ou
+        // MAX_ITER iterations, le texte deborde toujours trop largement. C'est le
+        // signal retenu pour distinguer un veritable artefact de mesure
+        // (Java2D/PowerPoint) d'une boite structurellement trop petite pour son
         // contenu (legende/annotation flottante) : dans ce second cas, la taille
         // d'origine doit etre restauree plutot que de produire un texte ecrase.
         XSLFTextBox box = slide.createTextBox();

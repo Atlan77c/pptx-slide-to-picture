@@ -1,5 +1,6 @@
 package io.github.atlan77c.pptx2picture;
 
+import io.github.atlan77c.pptx2picture.internal.ConnectorArrowFixer;
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
 import io.github.atlan77c.pptx2picture.internal.RoundedShapeAnchorFixer;
 import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
@@ -249,7 +250,20 @@ public final class PptxSlideRenderer {
             }
         }
 
-        slide.draw(graphics);
+        // [v13-drawfactory-zorder] Installe un DrawFactory personnalise qui substitue,
+        // pendant ce seul appel a slide.draw(graphics), notre propre dessinateur pour les
+        // connecteurs courbes/coudes a pointe de fleche declaree (POI oriente mal leur
+        // pointe - voir Javadoc de ConnectorArrowFixer) - POI continue de les dessiner a
+        // leur place naturelle dans l'ordre d'empilement des formes (contrairement aux
+        // anciennes versions, qui retiraient le connecteur de la slide pour le redessiner
+        // apres coup, ce qui le faisait passer systematiquement au premier plan quelle que
+        // soit sa position d'origine dans l'empilement).
+        Object previousDrawFactory = ConnectorArrowFixer.installBeforeDraw(graphics);
+        try {
+            slide.draw(graphics);
+        } finally {
+            ConnectorArrowFixer.restoreAfterDraw(graphics, previousDrawFactory);
+        }
 
         // Apres slide.draw(graphics), a l'inverse des correctifs precedents : il ne
         // s'agit pas ici de corriger l'etat d'une forme avant le dessin, mais de

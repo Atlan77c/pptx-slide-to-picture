@@ -145,6 +145,37 @@
           </execution>
         </executions>
       </plugin>
+      <!--
+        Permet de lancer directement une classe a main() (ex. l'outil
+        io.github.atlan77c.pptx2picture.tools.SlideExporterUI) en une seule
+        commande, sans construire le classpath a la main :
+          mvn compile exec:exec
+        Le goal "exec:exec" (et non "exec:java") est utilise volontairement :
+        "exec:java" execute le code DANS le meme processus que Maven, ce qui
+        provoque un conflit de classes XML internes (Xerces) entre Maven et
+        Apache POI (javax.xml.parsers.FactoryConfigurationError: Provider
+        org.apache.xerces.jaxp.DocumentBuilderFactoryImpl not found, constate
+        en pratique) - "exec:exec" lance au contraire un processus "java"
+        totalement separe, avec pour seul classpath celui du projet (via le
+        placeholder special <classpath/> ci-dessous, resolu automatiquement
+        par le plugin), donc aucun conflit possible avec les classes internes
+        de Maven. N'affecte ni le jar publie ni le build normal (mvn install) :
+        ce plugin n'agit que lorsque le goal "exec:exec" est explicitement
+        demande.
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <executable>java</executable>
+          <arguments>
+            <argument>-classpath</argument>
+            <classpath/>
+            <argument>io.github.atlan77c.pptx2picture.tools.SlideExporterUI</argument>
+          </arguments>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

@@ -57,7 +57,7 @@ import java.util.Map;
  * (retrecissement systematique de la police en cas de depassement mesure).
  * Une premiere version agrandissait plutot la hauteur de l'anchor - fidele au
  * sens strict de ce mode d'autofit dans PowerPoint (qui ne reduit jamais la
- * police, la boite grandit) - mais observee en pratique sur un vrai fichier
+ * police, la boite grandit) - mais observee en pratique sur un fichier reel
  * a provoquer de nouveaux chevauchements avec les formes voisines situees en
  * dessous, puisque l'agrandissement deplace la limite basse de la boite sans
  * tenir compte du reste de la mise en page. Retrecir la police laisse toutes
@@ -66,40 +66,39 @@ import java.util.Map;
  * du diagramme, ce qui est le critere qui compte ici.
  *
  * <p><b>Exception au retrecissement force ({@code NONE})</b> : decouverte sur
- * un vrai fichier (slide 21, trois boites {@code noAutofit} de ~40pt de haut
- * ne contenant chacune qu'un seul caractere {@code "*"} decoratif a 72pt,
+ * un fichier reel (une boite {@code noAutofit} nettement plus petite que la
+ * taille de police declaree, ne contenant qu'un seul caractere decoratif
  * volontairement surdimensionne par l'auteur pour dessiner un accent visuel -
  * chevauchant deliberement une forme voisine, exactement comme PowerPoint
  * l'affiche). Si la taille de police <em>declaree</em> (avant toute mesure)
  * depasse deja a elle seule la hauteur de la boite, le debordement n'est pas
  * un artefact de mesure Java2D : PowerPoint montrerait le meme debordement
  * quelle que soit la precision du calcul de metriques, puisque meme un calcul
- * parfait ne ferait jamais tenir un texte a 72pt dans une boite de 40pt. Un
- * tel cas n'est donc jamais retreci de force, meme s'il chevauche
+ * parfait ne ferait jamais tenir un texte aussi grand dans une boite aussi
+ * petite. Un tel cas n'est donc jamais retreci de force, meme s'il chevauche
  * effectivement une autre forme de texte.
  *
  * <p><b>Deuxieme garde-fou ({@code NONE}) : objectif "sans collision"
- * plutot que "tient dans la boite"</b> - decouverte sur un autre vrai
- * fichier (slide 5, boite {@code noAutofit} de ~84pt de haut contenant 9
- * paragraphes de texte, alignement "Milieu"). Contrairement au cas
- * precedent, aucune taille de police declaree ne depasse a elle seule la
- * hauteur de la boite : c'est le volume de texte (nombre de lignes) qui
- * fait que le retrecissement visant un ajustement complet dans la boite
- * (le meme objectif que pour {@code NORMAL}/{@code SHAPE}) n'atteint jamais
- * sa cible, meme ecrase jusqu'a la limite basse ({@link #MIN_SCALE}) ou
- * {@link #MAX_ITER} iterations. Or PowerPoint n'exige jamais qu'un texte
- * {@code noAutofit} tienne entierement dans sa boite - seulement qu'il ne
- * produise pas de chevauchement genant avec une forme voisine, ce qui est
- * la seule raison d'etre du retrecissement force ici. Quand l'ajustement
- * complet echoue, une deuxieme passe vise donc un objectif plus modeste :
- * ne retrecir que jusqu'a ce que la collision reelle detectee plus haut
- * disparaisse (recalculee a chaque iteration), en acceptant un debordement
- * residuel au-dela de la boite tant qu'il ne chevauche plus la forme
- * voisine - exactement ce que montre PowerPoint pour cette boite (confirme
- * visuellement par l'auteur du fichier). Si meme cette cible plus modeste
- * n'est pas atteinte a la limite basse, la taille d'origine est restauree
- * en dernier recours plutot que de produire un texte ecrase qui chevauche
- * quand meme.
+ * plutot que "tient dans la boite"</b> - decouverte sur un autre fichier
+ * reel (boite {@code noAutofit} contenant plusieurs paragraphes de texte,
+ * alignement "Milieu"). Contrairement au cas precedent, aucune taille de
+ * police declaree ne depasse a elle seule la hauteur de la boite : c'est le
+ * volume de texte (nombre de lignes) qui fait que le retrecissement visant
+ * un ajustement complet dans la boite (le meme objectif que pour
+ * {@code NORMAL}/{@code SHAPE}) n'atteint jamais sa cible, meme ecrase
+ * jusqu'a la limite basse ({@link #MIN_SCALE}) ou {@link #MAX_ITER}
+ * iterations. Or PowerPoint n'exige jamais qu'un texte {@code noAutofit}
+ * tienne entierement dans sa boite - seulement qu'il ne produise pas de
+ * chevauchement genant avec une forme voisine, ce qui est la seule raison
+ * d'etre du retrecissement force ici. Quand l'ajustement complet echoue, une
+ * deuxieme passe vise donc un objectif plus modeste : ne retrecir que
+ * jusqu'a ce que la collision reelle detectee plus haut disparaisse
+ * (recalculee a chaque iteration), en acceptant un debordement residuel
+ * au-dela de la boite tant qu'il ne chevauche plus la forme voisine -
+ * exactement ce que montre PowerPoint pour ce type de boite. Si meme cette
+ * cible plus modeste n'est pas atteinte a la limite basse, la taille
+ * d'origine est restauree en dernier recours plutot que de produire un
+ * texte ecrase qui chevauche quand meme.
  */
 public final class OverflowAwareTextFitter {
 
@@ -114,14 +113,14 @@ public final class OverflowAwareTextFitter {
      * Marge de securite appliquee a la hauteur cible lors du retrecissement :
      * on arrete de retrecir des que le texte mesure tient dans {@code anchor.getHeight() * SAFETY_MARGIN}
      * plutot que dans {@code anchor.getHeight()} strictement. Sans cette marge, un cas reel
-     * (diagnostic sur un fichier de production - forme "spAutoFit" a 5 paragraphes, ecart de
+     * (diagnostic sur un fichier de production - forme "spAutoFit" a plusieurs paragraphes, ecart de
      * mesure de ~30% entre Java2D et PowerPoint, dans le haut de la fourchette deja documentee)
      * a montre que le retrecissement s'arretait des que getTextHeight() repassait sous
-     * anchor.getHeight(), mais avec une marge residuelle de moins de 1pt sur ~74pt : largement
-     * insuffisant pour absorber a la fois l'epaisseur du trait de bordure de la forme et un
-     * eventuel ecart residuel entre la mesure de getTextHeight() et ce que slide.draw() peint
-     * reellement - le texte continuait donc a chevaucher visuellement la bordure malgre un
-     * retrecissement de police tres marque (jusqu'a -30% environ dans ce cas).
+     * anchor.getHeight(), mais avec une marge residuelle de moins de 1pt sur une hauteur de plusieurs
+     * dizaines de points : largement insuffisant pour absorber a la fois l'epaisseur du trait de
+     * bordure de la forme et un eventuel ecart residuel entre la mesure de getTextHeight() et ce que
+     * slide.draw() peint reellement - le texte continuait donc a chevaucher visuellement la bordure
+     * malgre un retrecissement de police tres marque (jusqu'a -30% environ dans ce cas).
      */
     private static final double SAFETY_MARGIN = 0.97;
 
