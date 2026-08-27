@@ -162,6 +162,21 @@
         de Maven. N'affecte ni le jar publie ni le build normal (mvn install) :
         ce plugin n'agit que lorsque le goal "exec:exec" est explicitement
         demande.
+
+        <classpathScope>test</classpathScope> (par defaut "runtime", qui
+        n'inclut que les dependances "compile"/"runtime") : sans cela,
+        slf4j-simple (dependance "test" ci-dessus, seule implementation SLF4J
+        du projet - la librairie elle-meme ne depend que de l'API, voir plus
+        haut) n'est jamais sur le classpath de l'IHM lancee via exec:exec, et
+        SLF4J retombe silencieusement sur un logger "no-op" : aucun message
+        des correctifs (ConnectorArrowFixer, PictureGeometryClipFixer...)
+        n'apparait jamais dans la console, quel que soit leur niveau reel -
+        constate en pratique (voir aussi conversion_pptx_vers_images.md,
+        section 10). "test" inclut toutes les portees (compile+runtime+test),
+        ce qui suffit ici sans avoir a dupliquer slf4j-simple en scope
+        "runtime". L'argument -D ci-dessous regle en plus le niveau de log de
+        slf4j-simple sur "debug" (son defaut est "info", qui masquerait les
+        messages de diagnostic des correctifs).
       -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
@@ -169,7 +184,9 @@
         <version>3.3.0</version>
         <configuration>
           <executable>java</executable>
+          <classpathScope>test</classpathScope>
           <arguments>
+            <argument>-Dorg.slf4j.simpleLogger.defaultLogLevel=debug</argument>
             <argument>-classpath</argument>
             <classpath/>
             <argument>io.github.atlan77c.pptx2picture.tools.SlideExporterUI</argument>

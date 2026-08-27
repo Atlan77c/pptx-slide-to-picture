@@ -1,7 +1,8 @@
 package io.github.atlan77c.pptx2picture;
 
-import io.github.atlan77c.pptx2picture.internal.ConnectorArrowFixer;
+import io.github.atlan77c.pptx2picture.internal.DrawFactoryComposer;
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
+import io.github.atlan77c.pptx2picture.internal.RightAlignedIndentFixer;
 import io.github.atlan77c.pptx2picture.internal.RoundedShapeAnchorFixer;
 import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
 import io.github.atlan77c.pptx2picture.internal.TitleRepainter;
@@ -243,6 +244,15 @@ public final class PptxSlideRenderer {
                     anchorsFixed, slideIndex);
         }
 
+        // Independant de RoundedShapeAnchorFixer/OverflowAwareTextFitter (touche marL/indent,
+        // pas l'ancrage vertical ni la taille de police) - avant slide.draw(graphics) comme les
+        // deux precedents. Voir Javadoc de RightAlignedIndentFixer.
+        int indentsFixed = RightAlignedIndentFixer.fixInheritedIndent(slide);
+        if (indentsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} paragraphe(s) aligne(s) a droite/centre avec un retrait herite du masque corrige(s) (slide {})",
+                    indentsFixed, slideIndex);
+        }
+
         if (options.isFixTextOverflow()) {
             int shrunk = OverflowAwareTextFitter.fitOverflowingText(slide, graphics);
             if (shrunk > 0 && LOG.isDebugEnabled()) {
@@ -250,19 +260,28 @@ public final class PptxSlideRenderer {
             }
         }
 
-        // [v13-drawfactory-zorder] Installe un DrawFactory personnalise qui substitue,
-        // pendant ce seul appel a slide.draw(graphics), notre propre dessinateur pour les
-        // connecteurs courbes/coudes a pointe de fleche declaree (POI oriente mal leur
-        // pointe - voir Javadoc de ConnectorArrowFixer) - POI continue de les dessiner a
-        // leur place naturelle dans l'ordre d'empilement des formes (contrairement aux
-        // anciennes versions, qui retiraient le connecteur de la slide pour le redessiner
-        // apres coup, ce qui le faisait passer systematiquement au premier plan quelle que
-        // soit sa position d'origine dans l'empilement).
-        Object previousDrawFactory = ConnectorArrowFixer.installBeforeDraw(graphics);
+        // [v13-drawfactory-zorder][v17-picture-clip] Installe, via DrawFactoryComposer, un
+        // DrawFactory personnalise qui substitue, pendant ce seul appel a slide.draw(graphics),
+        // notre propre dessinateur pour deux categories de formes :
+        //  - les connecteurs courbes/coudes a pointe de fleche declaree (POI oriente mal leur
+        //    pointe - voir Javadoc de ConnectorArrowFixer) - POI continue de les dessiner a
+        //    leur place naturelle dans l'ordre d'empilement des formes (contrairement aux
+        //    anciennes versions, qui retiraient le connecteur de la slide pour le redessiner
+        //    apres coup, ce qui le faisait passer systematiquement au premier plan quelle que
+        //    soit sa position d'origine dans l'empilement) ;
+        //  - les images "decoupees selon une forme" dans PowerPoint (ex. une ellipse, une
+        //    forme libre) : POI ignore purement et simplement cette decoupe et peint l'image
+        //    integralement rectangulaire, recouvrant tout ce qui se trouve derriere elle dans
+        //    la boite englobante de son ancre - voir Javadoc de PictureGeometryClipFixer.
+        // DrawFactoryComposer est necessaire ici (plutot que d'appeler les deux
+        // installBeforeDraw l'un apres l'autre) car Drawable.DRAW_FACTORY est un hint a valeur
+        // UNIQUE : installer le second correctif independamment ecraserait silencieusement le
+        // premier - voir Javadoc de DrawFactoryComposer.
+        Object previousDrawFactory = DrawFactoryComposer.installBeforeDraw(graphics);
         try {
             slide.draw(graphics);
         } finally {
-            ConnectorArrowFixer.restoreAfterDraw(graphics, previousDrawFactory);
+            DrawFactoryComposer.restoreAfterDraw(graphics, previousDrawFactory);
         }
 
         // Apres slide.draw(graphics), a l'inverse des correctifs precedents : il ne

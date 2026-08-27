@@ -1,15 +1,22 @@
 package io.github.atlan77c.pptx2picture;
 
+import org.apache.poi.sl.usermodel.PictureData.PictureType;
+import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFPictureData;
+import org.apache.poi.xslf.usermodel.XSLFPictureShape;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -186,5 +193,68 @@ class PptxSlideRendererTest {
         assertTrue(output.isFile());
         String content = java.nio.file.Files.readString(output.toPath());
         assertTrue(content.contains("<svg"));
+    }
+
+    /**
+     * Test de bout en bout, via l'API publique complete (donc y compris
+     * {@code DrawFactoryComposer}, pas seulement le fixer isole comme dans
+     * {@code PictureGeometryClipFixerTest}), du bug d'origine : une image
+     * "decoupee selon une forme" dans PowerPoint (ici une ellipse) qui
+     * ressortait integralement rectangulaire au rendu, recouvrant tout ce qui
+     * se trouve derriere elle dans la boite englobante de son ancre.
+     */
+    @Test
+    void renderSlide_clipsPictureCroppedToEllipseShape() throws Exception {
+        Color pictureColor = Color.RED;
+        File pptx;
+        try (XMLSlideShow ppt = new XMLSlideShow()) {
+            XSLFSlide slide = ppt.createSlide();
+            XSLFPictureData pictureData = ppt.addPicture(solidColorPng(100, 100, pictureColor), PictureType.PNG);
+            XSLFPictureShape pic = slide.createPicture(pictureData);
+            pic.setAnchor(new Rectangle2D.Double(50, 50, 200, 200));
+            pic.setShapeType(ShapeType.ELLIPSE);
+
+            pptx = tempDir.resolve("cropped-to-ellipse.pptx").toFile();
+            try (FileOutputStream out = new FileOutputStream(pptx)) {
+                ppt.write(out);
+            }
+        }
+
+        // scale=1 pour que les coordonnees pixel de l'image produite correspondent
+        // directement aux coordonnees (en points) de la slide.
+        RenderOptions options = RenderOptions.builder().scale(1.0f).build();
+        BufferedImage image = PptxSlideRenderer.renderSlide(pptx, 1, options);
+
+        // Ancre : (50,50) a (250,250), ellipse inscrite centree en (150,150), rayons 100/100.
+        // (55,55) est loin a l'interieur du rectangle d'ancrage mais nettement hors de
+        // l'ellipse ((dx/100)^2+(dy/100)^2 = 1.805 > 1) : doit rester le fond (blanc, la
+        // valeur par defaut de RenderOptions) si la decoupe est appliquee de bout en bout -
+        // c'est exactement le symptome du bug d'origine sinon (photo qui deborde de la forme).
+        assertEquals(rgb(Color.WHITE), rgb(image.getRGB(55, 55)),
+                "un coin de l'ancre, hors de l'ellipse inscrite, doit rester le fond");
+        assertEquals(rgb(pictureColor), rgb(image.getRGB(150, 150)),
+                "le centre de l'ellipse doit afficher la couleur de la photo");
+    }
+
+    private static int rgb(int argb) {
+        return argb & 0x00FFFFFF;
+    }
+
+    private static int rgb(Color color) {
+        return color.getRGB() & 0x00FFFFFF;
+    }
+
+    private static byte[] solidColorPng(int width, int height, Color color) throws IOException {
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setColor(color);
+            g.fillRect(0, 0, width, height);
+        } finally {
+            g.dispose();
+        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(img, "png", baos);
+        return baos.toByteArray();
     }
 }

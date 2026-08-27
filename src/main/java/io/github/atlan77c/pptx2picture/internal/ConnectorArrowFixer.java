@@ -371,7 +371,7 @@ public final class ConnectorArrowFixer {
      */
     public static Object installBeforeDraw(Graphics2D graphics) {
         Object previous = graphics.getRenderingHint(Drawable.DRAW_FACTORY);
-        graphics.setRenderingHint(Drawable.DRAW_FACTORY, new ArrowCorrectingDrawFactory());
+        graphics.setRenderingHint(Drawable.DRAW_FACTORY, createDrawFactory());
         if (LOG.isDebugEnabled()) {
             LOG.debug("[v13-drawfactory-zorder] DrawFactory de correction des pointes de fleche installe");
         }
@@ -387,6 +387,17 @@ public final class ConnectorArrowFixer {
      */
     public static void restoreAfterDraw(Graphics2D graphics, Object previousDrawFactory) {
         graphics.setRenderingHint(Drawable.DRAW_FACTORY, previousDrawFactory);
+    }
+
+    /**
+     * Cree une nouvelle instance du {@code DrawFactory} de ce correctif, sans
+     * l'installer sur un {@code Graphics2D} - reserve a la composition avec
+     * d'autres correctifs bases sur {@code DrawFactory} (voir {@link
+     * DrawFactoryComposer}, utilise par {@code PptxSlideRenderer} a la place
+     * d'un appel direct a {@link #installBeforeDraw} depuis [v17-picture-clip]).
+     */
+    static DrawFactory createDrawFactory() {
+        return new ArrowCorrectingDrawFactory();
     }
 
     /**
