@@ -578,7 +578,7 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_declaredNone_preservesMidBlockBlankParagraphContribution() throws IOException {
-        // Reproduit la regression du slide 4 de "fichier-test-A.pptx" (forme
+        // Reproduit la regression du slide 4 d'un fichier de test reel ("fichier-test-A.pptx") (forme
         // "ZoneTexte 23") : un paragraphe vide EN MILIEU de bloc (au moins un
         // paragraphe visible le suit) occupe un espace reel qui repousse le texte
         // visible qui le suit dans le rendu reel de POI. Avant l'amendement du
@@ -766,7 +766,8 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_declaredNone_shrinksFont_whenWrapPointIsAtAnchorEdge() throws IOException {
-        // Reproduit le motif general (texte simple, non gras) du slide 5 de "fichier-test-A.pptx" (ZoneTexte 41) : calibre, par recherche dichotomique sur la
+        // Reproduit le motif general (texte simple, non gras) du slide 5 d'un fichier
+        // de test reel ("fichier-test-A.pptx", ZoneTexte 41) : calibre, par recherche dichotomique sur la
         // largeur reelle, la largeur exacte de bascule entre 1 et 2 lignes selon la
         // mesure NATIVE de POI, puis place l'ancre de la forme tout juste au-dessus de
         // ce seuil : a la largeur PLEINE, le texte tient sur 1 ligne (aucun

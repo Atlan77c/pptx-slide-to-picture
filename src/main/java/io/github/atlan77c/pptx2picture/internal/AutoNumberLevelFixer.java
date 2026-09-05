@@ -88,8 +88,8 @@ import java.util.Map;
  * autoNbrIdx = startAt;}), mais applique au compteur du SEUL niveau concerne
  * plutot qu'a un compteur global. Une premiere version de ce correctif
  * ecrasait inconditionnellement la valeur par {@code startAt} des qu'il etait
- * present ; l'utilisateur a signale, sur le fichier reel de diagnostic (slide
- * "Sommaire", niveau 0 - "Section A"=1, "Section B" et "Section C" tous
+ * present ; l'utilisateur a signale, sur un fichier reel de diagnostic (slide
+ * sommaire, niveau 0 - "Section A"=1, "Section B" et "Section C" toutes
  * deux avec {@code startAt="4"} explicite dans le XML) que le rendu attendu
  * de PowerPoint est 1, 4, 5 (pas 1, 4, 4) : le deuxieme {@code startAt="4"}
  * doit ceder devant la continuation naturelle du niveau 0 (qui vaudrait 5 a

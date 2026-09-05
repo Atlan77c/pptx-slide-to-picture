@@ -126,7 +126,8 @@ public final class RenderOptions {
          * Apache POI (voir la Javadoc de {@code OverflowAwareTextFitter}, section
          * "Elargissement general (experimental)" - et section 26 du markdown de
          * suivi du projet, fichier {@code conversion_pptx_vers_images.md}, pour le
-         * cas reel ayant motive cet ajout : slide 16, "fichier-test-B.pptx").
+         * cas reel ayant motive cet ajout : slide 16 d'un fichier de test reel
+         * ("fichier-test-B.pptx").
          *
          * <p>Sans cette option (comportement par defaut, inchange), l'exemption
          * n'existe que pour les diapositives de type sommaire/table des matieres

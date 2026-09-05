@@ -296,7 +296,8 @@ public final class PptxSlideRenderer {
             // options.isBroadenAutofitExemption() : elargissement EXPERIMENTAL (2026-09-05,
             // desactive par defaut) de l'exemption d'autofit mal classe par POI - voir Javadoc
             // de OverflowAwareTextFitter, section "Elargissement general (experimental)", et
-            // section 26 du markdown de suivi (slide 16, "fichier-test-B.pptx"). Passe identiquement aux deux correctifs ci-dessous (meme
+            // section 26 du markdown de suivi (slide 16 d'un fichier de test reel, "fichier-test-B.pptx").
+            // Passe identiquement aux deux correctifs ci-dessous (meme
             // exemption partagee, voir OverflowAwareTextFitter#isAutofitBroadeningExempt).
             boolean broadenAutofitExemption = options.isBroadenAutofitExemption();
             int shrunk = OverflowAwareTextFitter.fitOverflowingText(slide, graphics, broadenAutofitExemption);

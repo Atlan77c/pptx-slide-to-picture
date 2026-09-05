@@ -50,7 +50,7 @@ class AutoNumberLevelFixerTest {
 
     @Test
     void levelNumbering_deeperLevel_restartsAt1AndParentContinuesAfterwards() {
-        // Reproduit exactement la structure du sommaire reel (slide 5) : chaque item de
+        // Reproduit exactement la structure d'un sommaire reel (slide 5) : chaque item de
         // niveau 0 est suivi d'items de niveau 1 qui doivent redemarrer independamment.
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
@@ -59,7 +59,7 @@ class AutoNumberLevelFixerTest {
         assertEquals(2, numbering.next(1, null), "Section A, sous-point 2");
         assertEquals(3, numbering.next(1, null), "Section A, sous-point 3");
 
-        assertEquals(2, numbering.next(0, null), "Definir - NE DOIT PAS etre '1.' comme avec le "
+        assertEquals(2, numbering.next(0, null), "Section B - NE DOIT PAS etre '1.' comme avec le "
                 + "compteur plat de POI, ni continuer la sequence a '5.'");
         assertEquals(1, numbering.next(1, null), "Section B, sous-point 1 - DOIT redemarrer a 1, "
                 + "pas continuer a partir de 4");
@@ -72,7 +72,7 @@ class AutoNumberLevelFixerTest {
 
     @Test
     void levelNumbering_explicitStartAt_becomesNewBaselineForFollowingSiblingsAndChildren() {
-        // Reproduit le slide de test de l'utilisateur : buAutoNum/@startAt="4" pose sur un
+        // Reproduit un slide de test reel : buAutoNum/@startAt="4" pose sur un
         // item de niveau 0 ("Section B"), verifie que (a) l'item lui-meme prend bien 4, (b) les
         // enfants de niveau 1 en dessous redemarrent a 1 SANS etre contamines par ce 4 - le
         // coeur du bug d'origine (POI les faisait continuer a 5, 6, 7...).
@@ -83,7 +83,7 @@ class AutoNumberLevelFixerTest {
         assertEquals(2, numbering.next(1, null));
         assertEquals(3, numbering.next(1, null));
 
-        assertEquals(4, numbering.next(0, 4), "Definir, startAt=4 explicite");
+        assertEquals(4, numbering.next(0, 4), "Section B, startAt=4 explicite");
         assertEquals(1, numbering.next(1, null), "Section B, sous-point 1 - NE DOIT PAS valoir 5");
         assertEquals(2, numbering.next(1, null));
         assertEquals(3, numbering.next(1, null));
@@ -94,7 +94,7 @@ class AutoNumberLevelFixerTest {
         // niveau 0 (4 -> 5) est ICI DEJA au-dessus de startAt=4, donc startAt n'a aucun effet -
         // "Section C" doit valoir 5, PAS 4 (un ecrasement inconditionnel par startAt, comme
         // dans une version anterieure de ce correctif, produirait a tort 4 ici aussi).
-        assertEquals(5, numbering.next(0, 4), "La trajectoire, startAt=4 explicite mais deja "
+        assertEquals(5, numbering.next(0, 4), "Section C, startAt=4 explicite mais deja "
                 + "depasse par la continuation naturelle du niveau 0 (4 -> 5)");
         assertEquals(1, numbering.next(1, null), "Section C, sous-point 1 - redemarre a 1");
     }
@@ -102,7 +102,7 @@ class AutoNumberLevelFixerTest {
     @Test
     void levelNumbering_secondExplicitStartAt_isFlooredByNaturalContinuation_notHardReset() {
         // Regression reelle (signalee par l'utilisateur le 2026-09-05) : rejoue exactement les
-        // 18 paragraphes du slide 6 de "fichier-test-B.pptx"
+        // 18 paragraphes du slide 6 d'un fichier de test reel ("fichier-test-B.pptx")
         // (lvl/startAt extraits directement du XML). Attendu par PowerPoint : la sequence de
         // niveau 0 est 1, 4, 5 - PAS 1, 4, 4. Une premiere version de ce correctif, qui ecrasait
         // inconditionnellement la valeur par startAt des qu'il etait present (au lieu de le
@@ -117,14 +117,14 @@ class AutoNumberLevelFixerTest {
         assertEquals(3, numbering.next(1, null), "Section A, sous-point 3");
         // paragraphe-espaceur (buAutoNum absent) : jamais transmis a next(), voir plus bas.
 
-        assertEquals(4, numbering.next(0, 4), "Definir (startAt=4 explicite dans le XML)");
+        assertEquals(4, numbering.next(0, 4), "Section B (startAt=4 explicite dans le XML)");
         assertEquals(1, numbering.next(1, null), "Section B, sous-point 1");
         assertEquals(2, numbering.next(1, null), "Section B, sous-point 2");
         assertEquals(3, numbering.next(1, null), "Section B, sous-point 3");
         assertEquals(4, numbering.next(1, null), "Section B, sous-point 4");
         // paragraphe-espaceur : jamais transmis a next().
 
-        assertEquals(5, numbering.next(0, 4), "La trajectoire (startAt=4 explicite lui aussi dans "
+        assertEquals(5, numbering.next(0, 4), "Section C (startAt=4 explicite lui aussi dans "
                 + "le XML, mais NE DOIT PAS regresser la sequence de niveau 0 qui est deja a 5)");
         assertEquals(1, numbering.next(1, null), "Section C, sous-point 1");
         assertEquals(2, numbering.next(1, null), "Section C, sous-point 2");
@@ -204,7 +204,7 @@ class AutoNumberLevelFixerTest {
         }
 
         assertEquals(List.of(1, 1, 2, 2, 1, 2), rendered,
-                "Comprendre=1 ; ses 2 enfants=1,2 ; Definir=2 (pas '1.' comme avec POI standard) ; "
+                "Section A=1 ; ses 2 enfants=1,2 ; Section B=2 (pas '1.' comme avec POI standard) ; "
                         + "ses 2 enfants redemarrent a 1,2 (pas '3.','4.')");
     }
 

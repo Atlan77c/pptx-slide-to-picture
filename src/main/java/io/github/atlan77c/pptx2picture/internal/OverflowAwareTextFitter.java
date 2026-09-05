@@ -163,8 +163,8 @@ import java.util.regex.Pattern;
  * correction ci-dessus, validee uniquement sur le cas d'un paragraphe vide EN
  * FIN de bloc (aucun paragraphe visible apres lui), s'est averee incorrecte
  * pour un paragraphe vide EN MILIEU de bloc (au moins un paragraphe visible
- * le suit) : decouvert sur le slide 4 du fichier "fichier-test-A.pptx" (forme
- * "ZoneTexte 23", {@code noAutofit} explicitement declare, 9 paragraphes dont
+ * le suit) : decouvert sur le slide 4 d'un fichier de test reel ("fichier-test-A.pptx",
+ * forme "ZoneTexte 23", {@code noAutofit} explicitement declare, 9 paragraphes dont
  * deux entierement vides intercales parmi des paragraphes visibles). Un
  * paragraphe vide EN FIN de bloc ne "pousse" rien apres lui - rien ne depend
  * de sa hauteur reelle, l'ignorer entierement pour la mesure est donc sans
@@ -301,12 +301,12 @@ import java.util.regex.Pattern;
  * entierement verifiee, sans dependre du titre de la diapositive</h2>
  * <p>Cas reel ayant motive cet ajout, documente en detail dans le markdown de
  * suivi du projet ({@code conversion_pptx_vers_images.md}, section 26) :
- * slide 16 du fichier "fichier-test-B.pptx",
+ * slide 16 d'un fichier de test reel ("fichier-test-B.pptx"),
  * deux formes cote a cote (« Espace reserve du texte 2 » et « Espace reserve
  * du contenu 3 »), toutes deux avec un {@code <a:bodyPr>} vide (aucun autofit
  * declare localement) - EXACTEMENT le motif de "l'elargissement cible aux
  * diapositives sommaire" ci-dessus, sauf que le titre de cette diapositive
- * ("Titre de diapositive utilisateur") ne
+ * (un intitule quelconque hors sommaire) ne
  * correspond a aucun intitule de {@link #TABLE_OF_CONTENTS_TITLES} : la forme
  * de droite, dont le contenu frole sa boite (debordement mesure d'a peine
  * ~2%, tres probablement lui-meme un artefact de la surestimation Java2D
@@ -351,7 +351,8 @@ import java.util.regex.Pattern;
  *
  * <h2>Quatrieme garde-fou : point de retour a la ligne "a la limite" (2026-09-02)</h2>
  * <p>Tout ce qui precede compense un ecart de mesure Java2D/PowerPoint sur l'axe
- * VERTICAL (hauteur de texte). Decouvert sur le slide 5 du fichier "fichier-test-A.pptx" ("ZoneTexte 41") : le meme type d'ecart existe aussi sur l'axe
+ * VERTICAL (hauteur de texte). Decouvert sur le slide 5 d'un fichier de test reel
+ * ("fichier-test-A.pptx", "ZoneTexte 41") : le meme type d'ecart existe aussi sur l'axe
  * HORIZONTAL, au niveau du retour a la ligne lui-meme. Confirme par comparaison
  * directe avec une capture d'ecran PowerPoint fournie par l'utilisateur : a la
  * meme taille de police, PowerPoint casse la ligne apres "avec la", tandis que
@@ -466,8 +467,8 @@ import java.util.regex.Pattern;
  *
  * <h2>Piste explorée puis abandonnée : marge de tolerance sur la detection de
  * collision verticale (2026-09-02, retiree le meme jour)</h2>
- * <p>Sur le slide 5 du fichier "fichier-test-A.pptx", forme "ZoneTexte 39" :
- * le texte ("texte utilisateur (segments courts)") deborde
+ * <p>Sur le slide 5 d'un fichier de test reel ("fichier-test-A.pptx"), forme "ZoneTexte 39" :
+ * le texte utilisateur (plusieurs segments courts separes par « / ») deborde
  * bel et bien de son anchor selon la mesure de cette bibliotheque (jusqu'a
  * 203,29pt de texte mesure contre 84,36pt d'anchor - voir le log de
  * diagnostic "debordement mesure... mais aucune collision"), et un premier
@@ -1590,8 +1591,8 @@ public final class OverflowAwareTextFitter {
      * paragraphe vide en fin de bloc, il occupe un espace reel qui repousse
      * vers le bas le texte visible qui le suit dans le rendu reel de POI - l'
      * omettre sous-estimerait la hauteur reellement necessaire (voir
-     * l'amendement du 2026-09-01 en Javadoc de classe, motive par le fichier
-     * "fichier-test-A.pptx"). Meme technique que {@code
+     * l'amendement du 2026-09-01 en Javadoc de classe, motive par un fichier de
+     * test reel ("fichier-test-A.pptx"). Meme technique que {@code
      * NeighborShapeOverlapFixer.ParagraphMeasurer} (copie {@link XSLFTextBox}
      * jetable, jamais dessinee, ajoutee au meme slide puis retiree par {@link
      * #close()}), simplifiee ici a un seul total a mesurer (pas de
@@ -1656,7 +1657,7 @@ public final class OverflowAwareTextFitter {
                 // prennent un double PRIMITIF - un appel direct ici, non garde, deballait
                 // (unboxing) un null et levait une NullPointerException des qu'un paragraphe
                 // ne declarait pas explicitement son propre espacement (motif tres courant,
-                // decouvert via un echec de mvn verify reel sur "fichier-test-A.pptx" apres
+                // decouvert via un echec de mvn verify reel sur un fichier de test reel apres
                 // l'introduction, ailleurs dans cette classe, d'un nouveau code (depuis
                 // retire, voir Javadoc de la classe, section "Quatrieme garde-fou...")
                 // copiant ce meme motif non protege. Ne fixer la
