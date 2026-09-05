@@ -18,6 +18,7 @@ public final class RenderOptions {
 
     private final float scale;
     private final boolean fixTextOverflow;
+    private final boolean broadenAutofitExemption;
     private final Color background;
     private final OutputFormat format;
     private final float jpegQuality;
@@ -25,6 +26,7 @@ public final class RenderOptions {
     private RenderOptions(Builder builder) {
         this.scale = builder.scale;
         this.fixTextOverflow = builder.fixTextOverflow;
+        this.broadenAutofitExemption = builder.broadenAutofitExemption;
         this.background = builder.background;
         this.format = builder.format;
         this.jpegQuality = builder.jpegQuality;
@@ -38,6 +40,14 @@ public final class RenderOptions {
     /** Indique si le correctif de debordement de texte est actif (voir {@link Builder#fixTextOverflow(boolean)}). */
     public boolean isFixTextOverflow() {
         return fixTextOverflow;
+    }
+
+    /**
+     * Indique si l'elargissement EXPERIMENTAL de l'exemption d'autofit force est
+     * actif (voir {@link Builder#broadenAutofitExemption(boolean)}).
+     */
+    public boolean isBroadenAutofitExemption() {
+        return broadenAutofitExemption;
     }
 
     /** Couleur de fond de l'image produite (voir {@link Builder#background(Color)}). */
@@ -76,6 +86,7 @@ public final class RenderOptions {
     public static final class Builder {
         private float scale = 2.0f;
         private boolean fixTextOverflow = true;
+        private boolean broadenAutofitExemption = false;
         private Color background = Color.WHITE;
         private OutputFormat format = OutputFormat.PNG;
         private float jpegQuality = 0.92f;
@@ -106,6 +117,41 @@ public final class RenderOptions {
          */
         public Builder fixTextOverflow(boolean fixTextOverflow) {
             this.fixTextOverflow = fixTextOverflow;
+            return this;
+        }
+
+        /**
+         * Active (desactive par defaut) un elargissement EXPERIMENTAL de
+         * l'exemption de retrecissement force pour cause d'autofit mal classe par
+         * Apache POI (voir la Javadoc de {@code OverflowAwareTextFitter}, section
+         * "Elargissement general (experimental)" - et section 26 du markdown de
+         * suivi du projet, fichier {@code conversion_pptx_vers_images.md}, pour le
+         * cas reel ayant motive cet ajout : slide 16, "fichier-test-B.pptx").
+         *
+         * <p>Sans cette option (comportement par defaut, inchange), l'exemption
+         * n'existe que pour les diapositives de type sommaire/table des matieres
+         * (titre reconnu dans une liste fixe) : une forme dont l'autofit n'est
+         * declare nulle part (ni sur la slide, ni sur la mise en page, ni sur le
+         * masque) y est alors, a tort, retrecie systematiquement par Apache POI
+         * qui la classe {@code NORMAL} au lieu de {@code NONE} faute de resolution
+         * d'heritage correcte sur {@code getTextAutofit()}.
+         *
+         * <p>Avec cette option activee, la MEME exemption s'applique a TOUTE forme
+         * dont aucun maillon de la chaine d'heritage (slide, mise en page, masque)
+         * ne declare explicitement {@code noAutofit}/{@code normAutofit}/
+         * {@code spAutoFit} - independamment du titre de la diapositive. Plus
+         * fidele a la cause reelle (un defaut de resolution d'heritage de POI,
+         * sans rapport avec le fait qu'une slide soit ou non un sommaire), mais
+         * plus large en portee : peut changer le rendu de formes qui, jusqu'ici,
+         * etaient retrecies par ce correctif ailleurs dans un fichier existant.
+         *
+         * <p><b>Statut experimental</b> : a activer pour valider au cas par cas
+         * (slide 16 ci-dessus, puis les fichiers deja corriges via l'elargissement
+         * "sommaire" existant, pour verifier l'absence de regression) avant de
+         * l'adopter comme comportement par defaut.
+         */
+        public Builder broadenAutofitExemption(boolean broadenAutofitExemption) {
+            this.broadenAutofitExemption = broadenAutofitExemption;
             return this;
         }
 

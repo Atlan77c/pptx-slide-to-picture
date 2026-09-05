@@ -356,6 +356,16 @@ public final class SlideExporterUI extends JFrame {
 
             @Override
             protected Void doInBackground() {
+                // 2026-09-05 : le test temporaire de broadenAutofitExemption(true), force
+                // pour tous les exports, a ete retire (voir section 26 de
+                // conversion_pptx_vers_images.md) - il provoquait des regressions sur des
+                // formes NORMAL legitimement rétrécies dans d'autres fichiers/diapositives
+                // (placeholders sans forme correspondante au masque, autoformes ordinaires
+                // sans autofit declare - voir Javadoc de RenderOptions.Builder#
+                // broadenAutofitExemption(boolean)). Retour au comportement par defaut
+                // (RenderOptions.defaults(), via la surcharge a 3 arguments) pour tous les
+                // fichiers, y compris le slide 16 qui l'avait motive.
+
                 int done = 0;
                 for (int slideIndex : slideIndexes) {
                     String fileName = String.format(Locale.ROOT, "%s_slide%0" + digits + "d.png",

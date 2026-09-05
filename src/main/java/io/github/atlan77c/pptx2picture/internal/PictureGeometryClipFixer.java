@@ -8,10 +8,7 @@ import org.apache.poi.sl.draw.geom.CustomGeometry;
 import org.apache.poi.sl.draw.geom.Outline;
 import org.apache.poi.sl.draw.geom.PathIf;
 import org.apache.poi.sl.usermodel.PictureShape;
-import org.apache.poi.sl.usermodel.ShapeType;
-import org.apache.poi.sl.usermodel.SimpleShape;
 import org.apache.poi.util.Units;
-import org.apache.poi.xslf.model.PropertyFetcher;
 import org.apache.poi.xslf.usermodel.XSLFShape;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +60,7 @@ import java.util.List;
  * mecanisme)</b> : {@link #installBeforeDraw} installe un {@code DrawFactory}
  * personnalise qui intercepte uniquement {@code getDrawable(PictureShape)}
  * pour les images dont la geometrie declaree n'est pas un simple rectangle
- * (voir {@link #resolveGeometry}), et leur substitue {@link
+ * (voir {@link PlaceholderGeometryResolver#resolve}), et leur substitue {@link
  * GeometryClippedPictureShape} - qui pose, juste avant de deleguer a {@code
  * super.drawContent(graphics)}, un clip {@link Area} egal a l'union des
  * sous-chemins REMPLIS ({@code PathIf#isFilled()}) du contour de la forme -
@@ -92,7 +89,7 @@ import java.util.List;
  * ne se declenchait pas du tout pour ce cas (silencieusement, {@code
  * getShapeType()} renvoyant {@code null}), sans aucune erreur - exactement le
  * symptome "le correctif n'a rien change" remonte sur un fichier reel.
- * {@link #resolveGeometry} corrige cela en reproduisant la meme chaine
+ * {@link PlaceholderGeometryResolver#resolve} corrige cela en reproduisant la meme chaine
  * d'heritage que POI utilise deja en interne pour les autres proprietes
  * (couleur de remplissage, de trait...) - {@code XSLFShape.
  * fetchShapeProperty(PropertyFetcher)}, {@code public}, qui visite dans
@@ -102,8 +99,8 @@ import java.util.List;
  * declare une localement.
  *
  * <p><b>Formes volontairement laissees intactes</b> (voir {@link
- * #resolveGeometry}) : une image dont le type de forme resolu (localement ou
- * par heritage) est {@code null} ou {@link ShapeType#RECT} (le cas de la tres
+ * PlaceholderGeometryResolver#resolve}) : une image dont le type de forme resolu (localement ou
+ * par heritage) est {@code null} ou {@code ShapeType.RECT} (le cas de la tres
  * grande majorite des images - insertion normale, ou rognage rectangulaire
  * classique {@code srcRect} sans changement de forme) continue de suivre
  * exactement le comportement standard de POI, sans le moindre risque de
@@ -117,6 +114,56 @@ import java.util.List;
  * geometrique supplementaire est ajoute - les deux se combinent naturellement
  * puisque le clip s'applique en dernier lieu au resultat deja rogne par
  * {@code insets}.
+ *
+ * <p><b>Correction du 2026-08-29 - forme de decoupe libre ({@code
+ * custGeom}) jamais detectee, meme locale</b> : sur un fichier reel distinct
+ * de celui de la correction du 2026-08-26 ci-dessus, plusieurs images
+ * inserees dans un espace reserve image dont la forme de decoupe heritee de
+ * la mise en page est une forme LIBRE ({@code &lt;a:custGeom&gt;}, ex. un
+ * rectangle a coin arrondi/coupe dessine a la main - pas un preset nomme
+ * comme une ellipse) restaient rendues integralement rectangulaires, alors
+ * meme que la chaine d'heritage slide -&gt; layout de la correction
+ * precedente fonctionnait deja correctement pour ce meme fichier sur une
+ * AUTRE image du meme jeu de diapositives, dont la decoupe est une ellipse
+ * ({@code &lt;a:prstGeom prst="ellipse"/&gt;}) - confirme par les logs
+ * {@code DEBUG} de ce correctif, qui montraient la decoupe appliquee pour
+ * l'ellipse mais ne mentionnaient jamais la seconde image, comme si elle
+ * n'avait jamais ete examinee. Cause racine, confirmee dans le code source
+ * d'Apache POI 5.2.5 ({@code XSLFSimpleShape.getShapeType()}) : cette
+ * methode ne lit QUE {@code &lt;a:prstGeom&gt;} - elle renvoie {@code null}
+ * pour une forme dont la geometrie est un {@code &lt;a:custGeom&gt;}, meme
+ * defini localement sur ce meme maillon (pas seulement en cas d'heritage non
+ * resolu, cette fois). {@link PlaceholderGeometryResolver#resolve} utilisait ce {@code null}
+ * comme signal "rien ici, passer au maillon suivant" - donc une forme libre
+ * locale etait traitee exactement comme une absence totale de geometrie, et
+ * {@code fetchShapeProperty} remontait jusqu'au bout de la chaine sans
+ * jamais rien trouver.
+ *
+ * <p>Corrige en ne se fiant plus uniquement a {@code getShapeType()} : {@code
+ * XSLFSimpleShape.getGeometry()} (verifie dans ce meme code source), lui,
+ * distingue correctement les trois cas - {@code prstGeom} local (retourne le
+ * preset nomme), {@code custGeom} local (retourne une {@code CustomGeometry}
+ * fabriquee a partir du trace libre), et aucun des deux (retourne, en repli,
+ * TOUJOURS la meme instance partagee du preset {@code "rect"}, {@code
+ * PresetGeometries.getInstance().get("rect")} etant un singleton charge une
+ * seule fois - verifie empiriquement dans ce meme diagnostic). Ce calcul de
+ * resolution distingue donc desormais "aucune geometrie a ce maillon" de
+ * "forme libre locale" en comparant par IDENTITE le resultat de {@code
+ * getGeometry()} a cette instance de repli partagee, plutot qu'en tentant
+ * d'acceder directement a {@code isSetCustGeom()} (porte par {@code
+ * XSLFPropertiesDelegate.XSLFGeometryProperties}, accessible uniquement via
+ * {@code XSLFShape.getShapeProperties()} qui est {@code protected} - donc
+ * inaccessible depuis ce paquetage, contrairement a {@code
+ * fetchShapeProperty} qui est {@code public}).
+ *
+ * <p><b>Extrait du 2026-08-29 (suite) dans {@link PlaceholderGeometryResolver}</b> :
+ * le meme jour, le meme ecart (heritage de placeholder non resolu pour un
+ * {@code custGeom} local) s'est revele s'appliquer aussi aux formes
+ * ORDINAIRES (texte, formes automatiques) et pas seulement aux images - voir
+ * {@link AutoShapeGeometryFixer}. Le calcul de resolution ci-dessus, jusque-la
+ * prive de cette classe, a ete extrait tel quel dans {@link
+ * PlaceholderGeometryResolver#resolve} pour etre partage entre les deux
+ * correctifs plutot que duplique.
  */
 public final class PictureGeometryClipFixer {
 
@@ -173,88 +220,16 @@ public final class PictureGeometryClipFixer {
     }
 
     /**
-     * Resout la geometrie et le type de forme reellement applicables a
-     * {@code shape}, en suivant si besoin l'heritage de placeholder
-     * PowerPoint (slide -&gt; layout -&gt; master) quand la forme elle-meme
-     * ne declare localement ni {@code <a:prstGeom>} ni {@code <a:custGeom>} -
-     * voir la section "Correction du 2026-08-26" de la Javadoc de la classe.
-     */
-    private static ResolvedGeometry resolveGeometry(PictureShape<?, ?> shape) {
-        // Detour par Object avant l'instanceof/cast vers XSLFShape : PictureShape<S,P>
-        // porte des parametres generiques "auto-bornes" (S extends Shape<S,P>, ...) - une
-        // fois captures depuis le joker <?, ?> de la signature de getDrawable(...), javac
-        // refuse un instanceof/cast direct entre ce type capture et la classe concrete
-        // XSLFShape ("incompatible types : cannot be converted", constate a la compilation
-        // reelle malgre cette meme conversion, sans probleme, pour XSLFShape -> SimpleShape
-        // plus bas). Object n'ayant aucun parametre generique, ce detour contourne cette
-        // limitation du compilateur sans changer le comportement a l'execution.
-        Object rawShape = shape;
-        if (!(rawShape instanceof XSLFShape)) {
-            // Defensif : cette bibliotheque ne traite que le format .pptx
-            // (XSLF) - ce cas ne devrait jamais se produire en pratique.
-            return new ResolvedGeometry(shape.getShapeType(), shape.getGeometry());
-        }
-        XSLFShape xslfShape = (XSLFShape) rawShape;
-
-        PropertyFetcher<ResolvedGeometry> fetcher = new PropertyFetcher<ResolvedGeometry>() {
-            @Override
-            public boolean fetch(XSLFShape candidate) {
-                if (!(candidate instanceof SimpleShape)) {
-                    return false;
-                }
-                SimpleShape<?, ?> simpleShape = (SimpleShape<?, ?>) candidate;
-                ShapeType type = simpleShape.getShapeType();
-                if (type == null) {
-                    // Pas de <a:prstGeom>/<a:custGeom> local sur ce maillon de
-                    // la chaine - fetchShapeProperty passe au suivant
-                    // (layout, puis master).
-                    return false;
-                }
-                setValue(new ResolvedGeometry(type, simpleShape.getGeometry()));
-                return true;
-            }
-        };
-        xslfShape.fetchShapeProperty(fetcher);
-        return fetcher.isSet() ? fetcher.getValue() : new ResolvedGeometry(null, null);
-    }
-
-    /**
-     * Resultat de {@link #resolveGeometry} : le type de forme et la
-     * geometrie resolus, provenant du meme maillon de la chaine d'heritage
-     * (jamais l'un de la slide et l'autre du layout).
-     */
-    private static final class ResolvedGeometry {
-        final ShapeType type;
-        final CustomGeometry geometry;
-
-        ResolvedGeometry(ShapeType type, CustomGeometry geometry) {
-            this.type = type;
-            this.geometry = geometry;
-        }
-
-        /**
-         * {@code true} si cette resolution designe une geometrie non
-         * rectangulaire qu'il faut decouper (voir Javadoc de la classe,
-         * section "Formes volontairement laissees intactes").
-         */
-        boolean qualifiesForClipping() {
-            if (type == null || type == ShapeType.RECT) {
-                return false;
-            }
-            return geometry != null;
-        }
-    }
-
-    /**
      * {@code DrawFactory} personnalise qui substitue {@link
      * GeometryClippedPictureShape} pour les images qualifiees (voir {@link
-     * ResolvedGeometry#qualifiesForClipping}), et delegue au comportement
-     * standard de POI ({@code super.getDrawable(...)}) pour tout le reste.
+     * PlaceholderGeometryResolver.ResolvedGeometry#qualifiesForClipping}), et
+     * delegue au comportement standard de POI ({@code super.getDrawable(...)})
+     * pour tout le reste.
      */
     private static final class ClippingDrawFactory extends DrawFactory {
         @Override
         public DrawPictureShape getDrawable(PictureShape<?, ?> shape) {
-            ResolvedGeometry resolved = resolveGeometry(shape);
+            PlaceholderGeometryResolver.ResolvedGeometry resolved = PlaceholderGeometryResolver.resolve(shape);
             if (resolved.qualifiesForClipping()) {
                 if (LOG.isDebugEnabled()) {
                     // Detour par Object avant l'instanceof/cast vers XSLFShape - voir le
@@ -262,8 +237,9 @@ public final class PictureGeometryClipFixer {
                     Object rawShape = shape;
                     String origin = (rawShape instanceof XSLFShape) && ((XSLFShape) rawShape).isPlaceholder()
                             ? "heritee d'un placeholder" : "locale";
+                    String typeLabel = resolved.type != null ? resolved.type.toString() : "forme libre (custGeom)";
                     LOG.debug("Image '{}' : geometrie non rectangulaire resolue ({}, {}) - decoupe appliquee",
-                            shape.getShapeName(), resolved.type, origin);
+                            shape.getShapeName(), typeLabel, origin);
                 }
                 return new GeometryClippedPictureShape(shape, resolved.geometry);
             }
@@ -281,9 +257,9 @@ public final class PictureGeometryClipFixer {
      * <p>Ne reutilise volontairement PAS {@code DrawSimpleShape.
      * computeOutlines(Graphics2D)} (qui relit {@code getShape().
      * getGeometry()} directement sur la forme dessinee, sans heritage de
-     * placeholder - voir {@link #resolveGeometry}) : {@link
+     * placeholder - voir {@link PlaceholderGeometryResolver#resolve}) : {@link
      * #computeResolvedOutlines} en est une reimplementation qui utilise a la
-     * place la geometrie deja resolue par {@link #resolveGeometry}, transmise
+     * place la geometrie deja resolue par {@link PlaceholderGeometryResolver#resolve}, transmise
      * au constructeur.
      */
     private static final class GeometryClippedPictureShape extends DrawPictureShape {

@@ -1,15 +1,23 @@
 package io.github.atlan77c.pptx2picture;
 
+import io.github.atlan77c.pptx2picture.internal.BulletSymbolFontFixer;
 import io.github.atlan77c.pptx2picture.internal.DrawFactoryComposer;
+import io.github.atlan77c.pptx2picture.internal.NeighborShapeOverlapFixer;
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
+import io.github.atlan77c.pptx2picture.internal.OversizedWhitespaceRunFixer;
 import io.github.atlan77c.pptx2picture.internal.RightAlignedIndentFixer;
 import io.github.atlan77c.pptx2picture.internal.RoundedShapeAnchorFixer;
 import io.github.atlan77c.pptx2picture.internal.SymbolFontRunFixer;
+import io.github.atlan77c.pptx2picture.internal.TableCellLineSpacingFixer;
 import io.github.atlan77c.pptx2picture.internal.TitleRepainter;
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFShape;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
+import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
+import org.apache.poi.xslf.usermodel.XSLFTextRun;
+import org.apache.poi.xslf.usermodel.XSLFTextShape;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.DOMImplementation;
@@ -66,11 +74,13 @@ import java.util.Objects;
  *   <li><b>Ecart de metriques de police</b> : pour certaines polices, Java2D/AWT
  *       surestime la hauteur de texte necessaire (jusqu'a 30-35% observe dans certains
  *       cas) par rapport au moteur de rendu natif de PowerPoint, ce qui peut faire
- *       deborder une zone de texte hors de sa boite.
+ *       deborder une zone de texte hors de sa boite - y compris une cellule de tableau
+ *       natif hors de sa propre ligne.
  *       Corrige par defaut (voir {@link RenderOptions#isFixTextOverflow()}) en
  *       retrecissant la police des formes concernees ({@code NORMAL} et
  *       {@code SHAPE} systematiquement, {@code NONE} uniquement lorsque le
- *       debordement chevaucherait reellement une autre forme de texte voisine) -
+ *       debordement chevaucherait reellement une autre forme de texte voisine ;
+ *       une cellule de tableau, en corrigeant d'abord son interligne) -
  *       desactivable via {@link RenderOptions.Builder#fixTextOverflow(boolean)}.</li>
  *   <li><b>SVG : rendu du texte dependant des polices installees chez le lecteur</b> -
  *       voir {@link OutputFormat#SVG}.</li>
@@ -230,10 +240,39 @@ public final class PptxSlideRenderer {
         graphics.scale(scale, scale);
         graphics.fill(new Rectangle2D.Float(0, 0, pageSize.width, pageSize.height));
 
+        // [Diagnostic 2026-09-05, a retirer une fois le diagnostic termine] voir Javadoc de
+        // logTextSnapshot() - encadre tous les correctifs "avant dessin" pour determiner si un
+        // texte manquant au rendu final est deja absent du modele a ce stade (regression d'un
+        // correctif de ce paquetage) ou seulement absent du dessin produit par slide.draw()
+        // (cause hors de ce paquetage). Voir conversion_pptx_vers_images.md, section 26.
+        logTextSnapshot(slide, graphics, "initial (avant tout correctif)", slideIndex);
+
         int symbolRunsFixed = SymbolFontRunFixer.fixMixedSymbolRuns(slide);
         if (symbolRunsFixed > 0 && LOG.isDebugEnabled()) {
             LOG.debug("{} run(s) de police symbole (Wingdings/Webdings...) scinde(s) pour corriger du texte illisible (slide {})",
                     symbolRunsFixed, slideIndex);
+        }
+
+        // Independant de SymbolFontRunFixer ci-dessus : celui-ci corrige les polices
+        // symbole posees sur des RUNS de texte (<a:sym>), pas les puces de paragraphe
+        // (<a:buFont>/<a:buChar>), un chemin de rendu POI distinct - voir Javadoc de
+        // BulletSymbolFontFixer.
+        int bulletFontsFixed = BulletSymbolFontFixer.fixSymbolBulletFonts(slide);
+        if (bulletFontsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} puce(s) avec police symbole non reconnue (liste de repli type \"Wingdings,Sans-Serif\") "
+                            + "normalisee(s) pour corriger un pictogramme denature (slide {})",
+                    bulletFontsFixed, slideIndex);
+        }
+
+        // Avant OverflowAwareTextFitter : un run blanc surdimensionne gonfle la hauteur de
+        // ligne mesuree par Java2D pour un interligne en pourcentage, faussant toute mesure
+        // de hauteur faite ensuite (y compris par OverflowAwareTextFitter). Voir Javadoc de
+        // OversizedWhitespaceRunFixer.
+        int whitespaceRunsFixed = OversizedWhitespaceRunFixer.fixOversizedWhitespaceRuns(slide);
+        if (whitespaceRunsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} run(s) blanc(s) surdimensionne(s) (taille de police superieure au texte visible du "
+                            + "meme paragraphe) ramene(s) a une taille normale (slide {})",
+                    whitespaceRunsFixed, slideIndex);
         }
 
         // Avant OverflowAwareTextFitter : ce dernier lit ts.getVerticalAlignment() pour
@@ -254,29 +293,80 @@ public final class PptxSlideRenderer {
         }
 
         if (options.isFixTextOverflow()) {
-            int shrunk = OverflowAwareTextFitter.fitOverflowingText(slide, graphics);
+            // options.isBroadenAutofitExemption() : elargissement EXPERIMENTAL (2026-09-05,
+            // desactive par defaut) de l'exemption d'autofit mal classe par POI - voir Javadoc
+            // de OverflowAwareTextFitter, section "Elargissement general (experimental)", et
+            // section 26 du markdown de suivi (slide 16, "fichier-test-B.pptx"). Passe identiquement aux deux correctifs ci-dessous (meme
+            // exemption partagee, voir OverflowAwareTextFitter#isAutofitBroadeningExempt).
+            boolean broadenAutofitExemption = options.isBroadenAutofitExemption();
+            int shrunk = OverflowAwareTextFitter.fitOverflowingText(slide, graphics, broadenAutofitExemption);
             if (shrunk > 0 && LOG.isDebugEnabled()) {
                 LOG.debug("{} forme(s) de texte retrecie(s) pour corriger un debordement (slide {})", shrunk, slideIndex);
             }
+
+            // Complementaire, jamais redondant, avec OverflowAwareTextFitter : ce
+            // dernier ne traite que le debordement d'une forme au-dela de SA PROPRE
+            // ancre. NeighborShapeOverlapFixer couvre l'angle mort restant - un texte
+            // qui tient dans sa propre ancre (volontairement surdimensionnee pour
+            // accueillir une forme voisine posee par-dessus) mais dont le contenu
+            // reellement mesure s'etend neanmoins assez bas pour chevaucher cette
+            // forme voisine independante - y compris quand ce chevauchement ne
+            // concerne, a l'echelle du bloc entier, que des paragraphes ENTIEREMENT
+            // VIDES places en espaceurs devant une annotation (detection paragraphe
+            // par paragraphe, pas seulement forme entiere - voir Javadoc de la classe,
+            // "2e variante"). Doit s'executer apres (il ignore toute forme deja hors
+            // de son perimetre, cf. Javadoc de la classe). Gouverne par le meme
+            // indicateur RenderOptions.fixTextOverflow : meme famille de correction
+            // (chevauchement du a une surestimation Java2D/AWT).
+            int neighborFixed = NeighborShapeOverlapFixer.fixNeighborOverlaps(slide, graphics, broadenAutofitExemption);
+            if (neighborFixed > 0 && LOG.isDebugEnabled()) {
+                LOG.debug("{} forme(s) de texte corrigee(s) (interligne et/ou police) pour un chevauchement avec "
+                        + "une forme voisine independante, sans depasser leur propre ancre (slide {})",
+                        neighborFixed, slideIndex);
+            }
+
+            // Complementaire aux deux precedents, sur un perimetre totalement disjoint :
+            // aucun des correctifs ci-dessus ne parcourt les cellules de tableau (voir
+            // Javadoc de OverflowAwareTextFitter, section "Hors de portee : les cellules
+            // de tableau natif"). Meme famille de correction (surestimation Java2D/AWT de
+            // l'interligne), gouvernee par le meme indicateur RenderOptions.fixTextOverflow.
+            int tableCellsFixed = TableCellLineSpacingFixer.fixTableCellLineSpacing(slide, graphics);
+            if (tableCellsFixed > 0 && LOG.isDebugEnabled()) {
+                LOG.debug("{} cellule(s) de tableau corrigee(s) (interligne et/ou police) pour un debordement "
+                        + "sur la ligne suivante (slide {})", tableCellsFixed, slideIndex);
+            }
         }
 
-        // [v13-drawfactory-zorder][v17-picture-clip] Installe, via DrawFactoryComposer, un
-        // DrawFactory personnalise qui substitue, pendant ce seul appel a slide.draw(graphics),
-        // notre propre dessinateur pour deux categories de formes :
+        // [v13-drawfactory-zorder][v17-picture-clip][v20-picture-alpha] Installe, via
+        // DrawFactoryComposer, un DrawFactory personnalise qui substitue, pendant ce seul appel
+        // a slide.draw(graphics), notre propre dessinateur pour deux categories de formes :
         //  - les connecteurs courbes/coudes a pointe de fleche declaree (POI oriente mal leur
         //    pointe - voir Javadoc de ConnectorArrowFixer) - POI continue de les dessiner a
         //    leur place naturelle dans l'ordre d'empilement des formes (contrairement aux
         //    anciennes versions, qui retiraient le connecteur de la slide pour le redessiner
         //    apres coup, ce qui le faisait passer systematiquement au premier plan quelle que
         //    soit sa position d'origine dans l'empilement) ;
-        //  - les images "decoupees selon une forme" dans PowerPoint (ex. une ellipse, une
-        //    forme libre) : POI ignore purement et simplement cette decoupe et peint l'image
-        //    integralement rectangulaire, recouvrant tout ce qui se trouve derriere elle dans
-        //    la boite englobante de son ancre - voir Javadoc de PictureGeometryClipFixer.
-        // DrawFactoryComposer est necessaire ici (plutot que d'appeler les deux
-        // installBeforeDraw l'un apres l'autre) car Drawable.DRAW_FACTORY est un hint a valeur
-        // UNIQUE : installer le second correctif independamment ecraserait silencieusement le
-        // premier - voir Javadoc de DrawFactoryComposer.
+        //  - les images, sur deux aspects independants et cumulables (voir Javadoc de
+        //    DrawFactoryComposer, section "Cas particulier des images") : celles "decoupees
+        //    selon une forme" dans PowerPoint (ex. une ellipse, une forme libre), que POI peint
+        //    integralement rectangulaires, recouvrant tout ce qui se trouve derriere elles dans
+        //    la boite englobante de leur ancre - voir Javadoc de PictureGeometryClipFixer - et
+        //    celles rendues partiellement transparentes dans PowerPoint (poignee
+        //    "Transparence" du volet Format de l'image, <a:alphaModFix>), que POI peint
+        //    entierement opaques - voir Javadoc de PictureAlphaModFixer ;
+        //  - les formes ORDINAIRES (texte, formes automatiques - pas des images) dont la
+        //    geometrie de remplissage n'est declaree que dans la mise en page (espace reserve
+        //    decoratif habille par le theme, jamais repete localement sur la slide) : POI la
+        //    remplit alors integralement rectangulaire (un rond devient un carre, un panneau a
+        //    coin arrondi devient un rectangle) - voir Javadoc de AutoShapeGeometryFixer.
+        // DrawFactoryComposer est necessaire ici (plutot que d'appeler les installBeforeDraw de
+        // chaque correctif l'un apres l'autre) car Drawable.DRAW_FACTORY est un hint a valeur
+        // UNIQUE : installer un correctif independamment ecraserait silencieusement les
+        // precedents - voir Javadoc de DrawFactoryComposer.
+        // [Diagnostic 2026-09-05, a retirer une fois le diagnostic termine] meme methode
+        // qu'au tout debut de paintSlide() - voir le commentaire a cet appel.
+        logTextSnapshot(slide, graphics, "juste avant slide.draw()", slideIndex);
+
         Object previousDrawFactory = DrawFactoryComposer.installBeforeDraw(graphics);
         try {
             slide.draw(graphics);
@@ -291,6 +381,90 @@ public final class PptxSlideRenderer {
         int titlesRepainted = TitleRepainter.repaintTitles(slide, graphics);
         if (titlesRepainted > 0 && LOG.isDebugEnabled()) {
             LOG.debug("{} titre(s) repeint(s) au premier plan (slide {})", titlesRepainted, slideIndex);
+        }
+    }
+
+    /**
+     * [Diagnostic 2026-09-05, a retirer une fois le diagnostic termine] Journalise, pour
+     * chaque forme de texte de {@code slide}, le texte brut de chaque paragraphe (tous runs
+     * concatenes) ainsi que la hauteur totale mesuree par POI ({@link
+     * XSLFTextShape#getTextHeight(Graphics2D)}) comparee a la hauteur de son ancre.
+     *
+     * <p>But : determiner, pour un texte constate absent du rendu final (ex. une ligne de
+     * fin de paragraphe qui deborde a la ligne suivante, jamais dessinee), si ce texte est
+     * deja absent du MODELE POI a un moment donne (regression d'un correctif de ce
+     * paquetage, si l'appel se situe apres son execution) ou seulement absent du dessin
+     * produit par {@code slide.draw()} (bug hors de portee de ce paquetage, dans le
+     * decoupage de ligne interne d'Apache POI) - voir {@code
+     * conversion_pptx_vers_images.md}, section 26, pour le cas reel ayant motive cet ajout.
+     * Un appel encadrant chaque correctif "avant dessin" permet, par simple comparaison des
+     * lignes de log successives, de localiser exactement l'etape ou un texte disparaitrait
+     * du modele - alors qu'aujourd'hui aucun correctif de ce paquetage ne journalise que le
+     * texte AVANT/APRES son propre passage, seulement qu'il a agi ou non sur une forme.
+     *
+     * <p>Ne modifie jamais la forme ({@code getTextHeight(Graphics2D)} est une methode de
+     * lecture pure, deja utilisee en lecture seule ailleurs dans ce paquetage - voir Javadoc
+     * de {@link OverflowAwareTextFitter}) : peut etre appelee autant de fois que necessaire
+     * sans aucun risque d'effet de bord sur le rendu.
+     *
+     * @param moment     libelle court identifiant l'etape du pipeline a laquelle cet appel a
+     *                   lieu (ex. "initial (avant tout correctif)", "juste avant
+     *                   slide.draw()") - affiche tel quel dans chaque ligne de log pour
+     *                   distinguer les differents appels d'une meme execution.
+     * @param slideIndex uniquement pour le contexte affiche dans le log (base 1, voir
+     *                   {@link #renderSlide(File, int, RenderOptions)}).
+     */
+    private static void logTextSnapshot(XSLFSlide slide, Graphics2D graphics, String moment, int slideIndex) {
+        if (!LOG.isDebugEnabled()) {
+            return;
+        }
+        for (XSLFShape shape : slide.getShapes()) {
+            if (!(shape instanceof XSLFTextShape)) {
+                continue;
+            }
+            XSLFTextShape ts = (XSLFTextShape) shape;
+            List<XSLFTextParagraph> paragraphs = ts.getTextParagraphs();
+            double measuredHeight;
+            try {
+                measuredHeight = ts.getTextHeight(graphics);
+            } catch (RuntimeException e) {
+                // Mesure best-effort : ne doit jamais faire echouer le rendu reel a cause de
+                // ce diagnostic. Voir Javadoc de la methode.
+                measuredHeight = Double.NaN;
+            }
+            double anchorHeight = ts.getAnchor() != null ? ts.getAnchor().getHeight() : Double.NaN;
+            LOG.debug("[diag {} | slide {}] {} : {} paragraphe(s), hauteur mesuree {}pt, ancre {}pt, wordWrap={}",
+                    moment, slideIndex, shape.getShapeName(), paragraphs.size(), measuredHeight, anchorHeight,
+                    ts.getWordWrap());
+            for (int i = 0; i < paragraphs.size(); i++) {
+                XSLFTextParagraph para = paragraphs.get(i);
+                StringBuilder text = new StringBuilder();
+                for (XSLFTextRun run : para.getTextRuns()) {
+                    String raw = run.getRawText();
+                    text.append(raw == null ? "" : raw);
+                }
+                LOG.debug("[diag {} | slide {}] {} - paragraphe {} (niveau {}) : \"{}\"",
+                        moment, slideIndex, shape.getShapeName(), i, para.getIndentLevel(), text);
+                // Diagnostic taille de police reelle par run : verifie si la taille resolue
+                // (heritage layout/master inclus) correspond bien a ce qui est attendu (ex. 1600
+                // pour le corps herite du master), ou si elle "explose" (ex. 1800/2000/2400) a
+                // cause d'un bug de resolution d'heritage - voir section 26 du markdown de suivi.
+                List<XSLFTextRun> runs = para.getTextRuns();
+                if (runs.isEmpty()) {
+                    LOG.debug("[diag {} | slide {}] {} - paragraphe {} : AUCUN run (ligne vide/endParaRPr)"
+                                    + " - la hauteur de cette ligne depend uniquement de la taille de police par"
+                                    + " defaut resolue par POI pour ce niveau/placeholder.",
+                            moment, slideIndex, shape.getShapeName(), i);
+                } else {
+                    for (int r = 0; r < runs.size(); r++) {
+                        XSLFTextRun run = runs.get(r);
+                        LOG.debug("[diag {} | slide {}] {} - paragraphe {} / run {} : taille resolue={}pt,"
+                                        + " police={}, gras={}, texte=\"{}\"",
+                                moment, slideIndex, shape.getShapeName(), i, r, run.getFontSize(),
+                                run.getFontFamily(), run.isBold(), run.getRawText());
+                    }
+                }
+            }
         }
     }
 

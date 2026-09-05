@@ -9,6 +9,7 @@ import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.openxmlformats.schemas.presentationml.x2006.main.CTPicture;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
@@ -234,6 +235,88 @@ class PptxSlideRendererTest {
                 "un coin de l'ancre, hors de l'ellipse inscrite, doit rester le fond");
         assertEquals(rgb(pictureColor), rgb(image.getRGB(150, 150)),
                 "le centre de l'ellipse doit afficher la couleur de la photo");
+    }
+
+    /**
+     * Test de bout en bout, via l'API publique complete, du bug d'origine
+     * documente par {@code PictureAlphaModFixer} : une image rendue
+     * partiellement transparente dans PowerPoint ({@code <a:alphaModFix>})
+     * ressortait entierement opaque au rendu.
+     */
+    @Test
+    void renderSlide_appliesAlphaModFixTransparencyToPicture() throws Exception {
+        Color backgroundColor = Color.WHITE;
+        Color pictureColor = Color.RED;
+        File pptx;
+        try (XMLSlideShow ppt = new XMLSlideShow()) {
+            XSLFSlide slide = ppt.createSlide();
+            XSLFPictureData pictureData = ppt.addPicture(solidColorPng(100, 100, pictureColor), PictureType.PNG);
+            XSLFPictureShape pic = slide.createPicture(pictureData);
+            pic.setAnchor(new Rectangle2D.Double(50, 50, 200, 200));
+            setAlphaModFix(pic, 50_000); // 50% d'opacite, soit 50% de transparence dans PowerPoint.
+
+            pptx = tempDir.resolve("alpha-mod-fix.pptx").toFile();
+            try (FileOutputStream out = new FileOutputStream(pptx)) {
+                ppt.write(out);
+            }
+        }
+
+        RenderOptions options = RenderOptions.builder().scale(1.0f).background(backgroundColor).build();
+        BufferedImage image = PptxSlideRenderer.renderSlide(pptx, 1, options);
+
+        int blended = image.getRGB(150, 150);
+        assertTrue(rgb(blended) != rgb(pictureColor),
+                "l'image ne doit plus etre rendue pleinement opaque (bug d'origine)");
+        assertTrue(rgb(blended) != rgb(backgroundColor),
+                "l'image doit rester visible, pas totalement transparente");
+    }
+
+    /**
+     * Preuve de bout en bout que {@code PictureGeometryClipFixer} et {@code
+     * PictureAlphaModFixer} se composent bien (voir Javadoc de {@code
+     * DrawFactoryComposer}, section "Cas particulier des images") plutot que
+     * de s'exclure : une meme image a la fois decoupee en ellipse ET
+     * semi-transparente doit afficher les deux effets simultanement.
+     */
+    @Test
+    void renderSlide_combinesEllipseClipAndAlphaModFixTransparency() throws Exception {
+        Color backgroundColor = Color.WHITE;
+        Color pictureColor = Color.RED;
+        File pptx;
+        try (XMLSlideShow ppt = new XMLSlideShow()) {
+            XSLFSlide slide = ppt.createSlide();
+            XSLFPictureData pictureData = ppt.addPicture(solidColorPng(100, 100, pictureColor), PictureType.PNG);
+            XSLFPictureShape pic = slide.createPicture(pictureData);
+            pic.setAnchor(new Rectangle2D.Double(50, 50, 200, 200));
+            pic.setShapeType(ShapeType.ELLIPSE);
+            setAlphaModFix(pic, 50_000);
+
+            pptx = tempDir.resolve("clipped-and-transparent.pptx").toFile();
+            try (FileOutputStream out = new FileOutputStream(pptx)) {
+                ppt.write(out);
+            }
+        }
+
+        RenderOptions options = RenderOptions.builder().scale(1.0f).background(backgroundColor).build();
+        BufferedImage image = PptxSlideRenderer.renderSlide(pptx, 1, options);
+
+        // Decoupe (PictureGeometryClipFixer) : un coin de l'ancre, hors de l'ellipse
+        // inscrite, doit rester le fond pur - pas le moindre melange avec l'image.
+        assertEquals(rgb(backgroundColor), rgb(image.getRGB(55, 55)),
+                "un coin de l'ancre, hors de l'ellipse inscrite, doit rester le fond pur");
+        // Transparence (PictureAlphaModFixer) : le centre de l'ellipse doit afficher un
+        // melange, ni la couleur pleine de l'image ni le fond pur.
+        int blended = image.getRGB(150, 150);
+        assertTrue(rgb(blended) != rgb(pictureColor),
+                "le centre de l'ellipse ne doit plus afficher la couleur pleine de l'image");
+        assertTrue(rgb(blended) != rgb(backgroundColor),
+                "le centre de l'ellipse doit rester visible, pas totalement transparent");
+    }
+
+    /** Declare {@code <a:alphaModFix amt="..."/>} sur le {@code <a:blip>} de {@code pic} - pas d'API publique dediee cote Apache POI 5.2.5 (voir Javadoc de {@code PictureAlphaModFixer}). */
+    private static void setAlphaModFix(XSLFPictureShape pic, int amt) {
+        CTPicture ctPicture = (CTPicture) pic.getXmlObject();
+        ctPicture.getBlipFill().getBlip().addNewAlphaModFix().setAmt(amt);
     }
 
     private static int rgb(int argb) {

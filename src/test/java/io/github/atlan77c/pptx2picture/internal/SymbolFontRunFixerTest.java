@@ -160,6 +160,82 @@ class SymbolFontRunFixerTest {
         }
     }
 
+    @Test
+    void fixMixedSymbolRuns_fixesSymTaggedRunWithoutAnySymbolCharFollowedByNormalRun() {
+        // Reproduit exactement le motif du slide 25 de "Mes Evenements Emploi et
+        // Prestation - Doc vision 1.0.pptx" (voir Javadoc de la classe, cas (3)) :
+        // un run isole " p" (espace + lettre latine ordinaire, AUCUN caractere
+        // symbole) porte quand meme <a:sym typeface="Wingdings">, et est
+        // immediatement suivi d'un run tout a fait normal, sans la moindre
+        // police sym - contrairement au cas (2), le run sym n'est PAS suivi
+        // d'autres runs sym : c'etait le motif que l'ancienne version de ce
+        // correctif abandonnait entierement (zone non contigue jusqu'a la fin).
+        XSLFTextBox box = slide.createTextBox();
+        box.setAnchor(new Rectangle2D.Double(10, 10, 400, 100));
+        XSLFTextParagraph para = box.addNewTextParagraph();
+
+        addPlainRun(para, "Unification du persona « conseiller »  ");
+        XSLFTextRun brokenP = addPlainRun(para, " p");
+        applyMixedSymbolFont(brokenP);
+        addPlainRun(para, "oint d’entrée commun pour les conseillers");
+
+        String fullTextBefore = concatText(para);
+
+        int fixed = SymbolFontRunFixer.fixMixedSymbolRuns(slide);
+        assertEquals(2, fixed, "les 2 runs de la zone (le 'p' isole mal tague + le run normal qui suit) doivent etre touches");
+
+        // Le texte visible complet doit rester identique, dans le meme ordre -
+        // en particulier, le "p" ne doit pas migrer apres "oint d'entree...".
+        assertEquals(fullTextBefore, concatText(para));
+
+        // Plus aucun run ne doit porter de police symbole sur du texte non-symbole.
+        for (XSLFTextRun r : para.getTextRuns()) {
+            String t = r.getRawText();
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            CTRegularTextRun ct = (CTRegularTextRun) r.getXmlObject();
+            boolean hasSym = ct.getRPr() != null && ct.getRPr().isSetSym();
+            boolean allSymbolChars = t.chars().allMatch(c -> c >= 0xE000 && c <= 0xF8FF);
+            assertFalse(hasSym && !allSymbolChars, "run encore marque police symbole sur du texte non-symbole : " + t);
+        }
+    }
+
+    @Test
+    void fixMixedSymbolRuns_leavesVisuallyCorrectSpaceOnlySymRunHarmless() {
+        // Motif "correct" observe juste en dessous du bug, sur le meme slide 25 :
+        // le run sym ne contient QUE l'espace (aucun caractere visible, donc
+        // policesym ou pas ne change rien visuellement), et le mot suivant
+        // ("Point", majuscule) est entierement dans le run normal qui suit. Ce
+        // paragraphe est techniquement repere comme "a corriger" (l'espace seul
+        // n'est pas un caractere de la zone symbole - voir isProblematicSymRun),
+        // mais le resultat doit rester visuellement identique : aucune perte ni
+        // deplacement de texte.
+        XSLFTextBox box = slide.createTextBox();
+        box.setAnchor(new Rectangle2D.Double(10, 10, 400, 100));
+        XSLFTextParagraph para = box.addNewTextParagraph();
+
+        XSLFTextRun spaceOnly = addPlainRun(para, " ");
+        applyMixedSymbolFont(spaceOnly);
+        addPlainRun(para, "Point d’entrée commun pour les candidats");
+
+        String fullTextBefore = concatText(para);
+
+        SymbolFontRunFixer.fixMixedSymbolRuns(slide);
+
+        assertEquals(fullTextBefore, concatText(para), "le texte visible doit rester strictement identique");
+        for (XSLFTextRun r : para.getTextRuns()) {
+            String t = r.getRawText();
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            CTRegularTextRun ct = (CTRegularTextRun) r.getXmlObject();
+            boolean hasSym = ct.getRPr() != null && ct.getRPr().isSetSym();
+            boolean allSymbolChars = t.chars().allMatch(c -> c >= 0xE000 && c <= 0xF8FF);
+            assertFalse(hasSym && !allSymbolChars, "run encore marque police symbole sur du texte non-symbole : " + t);
+        }
+    }
+
     private XSLFTextRun addPlainRun(XSLFTextParagraph para, String text) {
         XSLFTextRun run = para.addNewTextRun();
         run.setText(text);
