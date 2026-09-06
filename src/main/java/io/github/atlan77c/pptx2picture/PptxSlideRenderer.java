@@ -2,6 +2,7 @@ package io.github.atlan77c.pptx2picture;
 
 import io.github.atlan77c.pptx2picture.internal.BulletSymbolFontFixer;
 import io.github.atlan77c.pptx2picture.internal.DrawFactoryComposer;
+import io.github.atlan77c.pptx2picture.internal.FontSubstitutionFixer;
 import io.github.atlan77c.pptx2picture.internal.NeighborShapeOverlapFixer;
 import io.github.atlan77c.pptx2picture.internal.OverflowAwareTextFitter;
 import io.github.atlan77c.pptx2picture.internal.OversizedWhitespaceRunFixer;
@@ -12,6 +13,7 @@ import io.github.atlan77c.pptx2picture.internal.TableCellLineSpacingFixer;
 import io.github.atlan77c.pptx2picture.internal.TitleRepainter;
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
+import org.apache.poi.sl.draw.HorizontalOverflowLineBreakFixer;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFShape;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
@@ -80,7 +82,11 @@ import java.util.Objects;
  *       retrecissant la police des formes concernees ({@code NORMAL} et
  *       {@code SHAPE} systematiquement, {@code NONE} uniquement lorsque le
  *       debordement chevaucherait reellement une autre forme de texte voisine ;
- *       une cellule de tableau, en corrigeant d'abord son interligne) -
+ *       une cellule de tableau, en corrigeant d'abord son interligne ; un depassement
+ *       HORIZONTAL revele par ce retrecissement vertical - un reflow qui pousse une
+ *       ligne au-dela de la largeur utile - par insertion d'un saut de ligne force,
+ *       qui preserve la taille de police d'origine, voir {@code
+ *       org.apache.poi.sl.draw.HorizontalOverflowLineBreakFixer}) -
  *       desactivable via {@link RenderOptions.Builder#fixTextOverflow(boolean)}.</li>
  *   <li><b>SVG : rendu du texte dependant des polices installees chez le lecteur</b> -
  *       voir {@link OutputFormat#SVG}.</li>
@@ -240,6 +246,19 @@ public final class PptxSlideRenderer {
         graphics.scale(scale, scale);
         graphics.fill(new Rectangle2D.Float(0, 0, pageSize.width, pageSize.height));
 
+        // En tout premier, avant meme le diagnostic ci-dessous : toute mesure de texte faite
+        // par la suite (par ce diagnostic comme par les correctifs reels) doit deja porter sur
+        // des polices reellement disponibles dans l'environnement de rendu - voir Javadoc de
+        // FontSubstitutionFixer. Sur un poste ou les polices declarees (Arial, Calibri...) sont
+        // installees (ex. Windows), ce correctif est un no-op garanti (verifie explicitement
+        // via GraphicsEnvironment avant toute substitution).
+        int fontsSubstituted = FontSubstitutionFixer.fixMissingFonts(slide);
+        if (fontsSubstituted > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} run(s) avec une police declaree absente de l'environnement de rendu substitue(s) "
+                            + "par un equivalent metriquement compatible reellement installe (slide {})",
+                    fontsSubstituted, slideIndex);
+        }
+
         // [Diagnostic 2026-09-05, a retirer une fois le diagnostic termine] voir Javadoc de
         // logTextSnapshot() - encadre tous les correctifs "avant dessin" pour determiner si un
         // texte manquant au rendu final est deja absent du modele a ce stade (regression d'un
@@ -335,6 +354,20 @@ public final class PptxSlideRenderer {
             if (tableCellsFixed > 0 && LOG.isDebugEnabled()) {
                 LOG.debug("{} cellule(s) de tableau corrigee(s) (interligne et/ou police) pour un debordement "
                         + "sur la ligne suivante (slide {})", tableCellsFixed, slideIndex);
+            }
+
+            // Dernier de la famille "debordement" : doit s'executer APRES tous les correctifs
+            // precedents (en particulier OverflowAwareTextFitter, dont le retrecissement
+            // vertical peut reveler un nouveau depassement HORIZONTAL par reflow - confirme
+            // reel sur la slide 57 de "Cadrage de vision_ Definir_0.6.pptx", voir Javadoc de
+            // HorizontalOverflowLineBreakFixer). Corrige par insertion de saut(s) de ligne
+            // force(s) plutot que par retrecissement de police (contrairement aux trois
+            // correctifs precedents) : preserve la taille de police d'origine, donc plus
+            // fidele a PowerPoint pour ce cas precis.
+            int horizontalBreaksFixed = HorizontalOverflowLineBreakFixer.fixHorizontalOverflow(slide, graphics);
+            if (horizontalBreaksFixed > 0 && LOG.isDebugEnabled()) {
+                LOG.debug("{} forme(s) de texte corrigee(s) par saut(s) de ligne force(s) pour un debordement "
+                        + "horizontal (slide {})", horizontalBreaksFixed, slideIndex);
             }
         }
 
