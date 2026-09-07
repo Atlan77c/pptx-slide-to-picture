@@ -1,5 +1,6 @@
 package io.github.atlan77c.pptx2picture;
 
+import io.github.atlan77c.pptx2picture.internal.AutoNumberBulletFontFixer;
 import io.github.atlan77c.pptx2picture.internal.BulletSymbolFontFixer;
 import io.github.atlan77c.pptx2picture.internal.DrawFactoryComposer;
 import io.github.atlan77c.pptx2picture.internal.FontSubstitutionFixer;
@@ -283,6 +284,19 @@ public final class PptxSlideRenderer {
                     bulletFontsFixed, slideIndex);
         }
 
+        // Independant de BulletSymbolFontFixer ci-dessus : celui-ci corrige les puces a
+        // NUMEROTATION AUTOMATIQUE (<a:buAutoNum>) dont la police heritee (jamais declaree
+        // localement) est Wingdings/Symbol - un chiffre/lettre affiche comme un pictogramme -
+        // alors que BulletSymbolFontFixer ne concerne que les puces a CARACTERE LITTERAL
+        // (<a:buChar>). Voir Javadoc de AutoNumberBulletFontFixer.
+        int autoNumberBulletFontsFixed = AutoNumberBulletFontFixer.fixAutoNumberBulletFonts(slide);
+        if (autoNumberBulletFontsFixed > 0 && LOG.isDebugEnabled()) {
+            LOG.debug("{} puce(s) a numerotation automatique avec police heritee non declaree localement "
+                            + "(Wingdings/Symbol) normalisee(s) sur la police du texte pour corriger un "
+                            + "numero/lettre denature en pictogramme (slide {})",
+                    autoNumberBulletFontsFixed, slideIndex);
+        }
+
         // Avant OverflowAwareTextFitter : un run blanc surdimensionne gonfle la hauteur de
         // ligne mesuree par Java2D pour un interligne en pourcentage, faussant toute mesure
         // de hauteur faite ensuite (y compris par OverflowAwareTextFitter). Voir Javadoc de
@@ -359,7 +373,7 @@ public final class PptxSlideRenderer {
             // Dernier de la famille "debordement" : doit s'executer APRES tous les correctifs
             // precedents (en particulier OverflowAwareTextFitter, dont le retrecissement
             // vertical peut reveler un nouveau depassement HORIZONTAL par reflow - confirme
-            // reel sur la slide 57 de "Cadrage de vision_ Definir_0.6.pptx", voir Javadoc de
+            // reel sur la slide 57 d'un document interne reel, voir Javadoc de
             // HorizontalOverflowLineBreakFixer). Corrige par insertion de saut(s) de ligne
             // force(s) plutot que par retrecissement de police (contrairement aux trois
             // correctifs precedents) : preserve la taille de police d'origine, donc plus

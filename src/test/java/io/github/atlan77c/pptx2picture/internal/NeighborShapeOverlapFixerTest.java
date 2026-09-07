@@ -254,7 +254,7 @@ class NeighborShapeOverlapFixerTest {
             throws IOException {
         // Complement du test precedent (voir Javadoc de la classe, "Formes exemptees
         // de l'elargissement sommaire", 2026-08-31) : motif reel du slide 2 (sommaire)
-        // du fichier "Refonte BEL" - un item de sommaire, autofit non declare
+        // d'un document interne reel - un item de sommaire, autofit non declare
         // localement (aucun appel a setTextAutofit, motif "tout XSLFTextBox
         // fraichement cree"), sur une ancre dimensionnee pour une seule ligne alors
         // que son texte reel en occupe plusieurs a cette largeur. OverflowAwareTextFitter

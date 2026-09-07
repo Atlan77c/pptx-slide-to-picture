@@ -25,8 +25,8 @@ import java.util.List;
  * du volet Format de l'image) ressort entierement opaque au rendu, masquant
  * tout ce qui devrait se voir en transparence derriere elle.
  *
- * <p><b>Constat sur le fichier reel</b> (slide 12 de
- * "Mes Evenements Emploi et Prestation - Doc vision 1.0.pptx") : l'image de
+ * <p><b>Constat sur le fichier reel</b> (slide 12 d'un document interne
+ * reel) : l'image de
  * gauche porte, dans PowerPoint, une transparence de 66% (soit 34% d'opacite)
  * - confirme cote source par l'attribut XML {@code <a:blipFill><a:blip
  * r:embed="rId5"><a:alphaModFix amt="34000"/></a:blip>...</a:blipFill>} sur

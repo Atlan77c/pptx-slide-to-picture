@@ -24,9 +24,8 @@ import java.util.Map;
  * litteral portant le meme code de caractere (ex. "Ø" au lieu d'une fleche,
  * "q" au lieu d'une coche).
  *
- * <p><b>Constat sur le fichier reel</b> (slide 9 de
- * "02.CGSI 2023 04 11 - SI Fraude_DIANE-CGSI_11avril2023_v1.0.pptx") : deux
- * declarations de puce Wingdings coexistent dans le meme slide, avec un
+ * <p><b>Constat sur le fichier reel</b> (slide 9 d'un document interne
+ * reel) : deux declarations de puce Wingdings coexistent dans le meme slide, avec un
  * rendu radicalement different -
  * <ul>
  *   <li>{@code <a:buFont typeface="Wingdings"/>} (nom de police exact, seul)

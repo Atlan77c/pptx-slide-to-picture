@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Reproduit le motif reel a l'origine de {@link TableCellLineSpacingFixer} (slide 18,
- * "Tableau 6", "Mes Evenements Emploi et Prestation - Doc vision 1.0.pptx") - voir Javadoc
+ * "Tableau 6" d'un document interne reel) - voir Javadoc
  * de la classe testee. Comme {@code OverflowAwareTextFitterTest} (meme convention, meme
  * raison), les assertions evitent toute comparaison numerique de hauteur/interligne
  * dependante des metriques Java2D/AWT reelles (qui varient selon les polices installees

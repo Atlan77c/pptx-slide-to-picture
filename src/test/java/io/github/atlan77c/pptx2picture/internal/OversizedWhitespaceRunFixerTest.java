@@ -14,9 +14,9 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Reproduit le motif observe sur un fichier reel (slide 10 de
- * "02.CGSI 2023 04 11 - SI Fraude_DIANE-CGSI_11avril2023_v1.0.pptx") : un
- * paragraphe a interligne en pourcentage contenant un run entierement blanc
+ * Reproduit le motif observe sur un fichier reel (slide 10 d'un document
+ * interne reel) : un paragraphe a interligne en pourcentage contenant un
+ * run entierement blanc
  * (un espace) a une taille de police bien plus grande que le texte visible du
  * meme paragraphe - Apache POI mesure la hauteur de cette ligne a partir de
  * TOUS ses runs, blancs compris, ce qui gonfle la ligne et pousse tout le

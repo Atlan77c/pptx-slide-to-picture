@@ -162,8 +162,8 @@ class SymbolFontRunFixerTest {
 
     @Test
     void fixMixedSymbolRuns_fixesSymTaggedRunWithoutAnySymbolCharFollowedByNormalRun() {
-        // Reproduit exactement le motif du slide 25 de "Mes Evenements Emploi et
-        // Prestation - Doc vision 1.0.pptx" (voir Javadoc de la classe, cas (3)) :
+        // Reproduit exactement le motif du slide 25 d'un document interne reel
+        // (voir Javadoc de la classe, cas (3)) :
         // un run isole " p" (espace + lettre latine ordinaire, AUCUN caractere
         // symbole) porte quand meme <a:sym typeface="Wingdings">, et est
         // immediatement suivi d'un run tout a fait normal, sans la moindre

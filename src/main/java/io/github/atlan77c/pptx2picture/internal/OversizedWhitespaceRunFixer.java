@@ -22,11 +22,9 @@ import java.util.List;
  * contenu place apres lui plus bas que chez PowerPoint, au point de chevaucher
  * une forme voisine independante.
  *
- * <p><b>Constat sur le fichier reel</b> (slide 10 de
- * "02.CGSI 2023 04 11 - SI Fraude_DIANE-CGSI_11avril2023_v1.0.pptx", signale
- * par l'utilisateur via capture d'ecran) : le bloc de chiffres cles ("817
- * signalements crees", "839 DE et 30 E signales", "247 referents...", "34
- * auditeurs...") chevauchait un post-it rouge place juste en dessous, alors
+ * <p><b>Constat sur le fichier reel</b> (slide 10 d'un document interne
+ * reel, signale par l'utilisateur via capture d'ecran) : un bloc de
+ * chiffres cles chevauchait une annotation placee juste en dessous, alors
  * que PowerPoint n'affiche aucun chevauchement. Inspection XML directe du
  * premier paragraphe ("817 signalements crees") : il contient TROIS runs -
  * {@code "817 "} en 20pt gras, {@code "signalements crees"} en 14pt, puis un

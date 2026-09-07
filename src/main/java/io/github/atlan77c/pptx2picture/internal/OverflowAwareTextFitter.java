@@ -118,9 +118,8 @@ import java.util.regex.Pattern;
  *
  * <h2>Troisieme garde-fou ({@code NONE}) : paragraphe entierement vide
  * ignore dans la mesure (2026-08-29)</h2>
- * <p>Decouverte sur le slide 2 (sommaire) du fichier "Refonte BEL -
- * Trajectoire d'adressage - V.3 - Aout 2026" : un item du sommaire
- * ("Trajectoire d'adressage") porte, en plus de son unique paragraphe
+ * <p>Decouverte sur le slide 2 (sommaire) d'un document interne reel :
+ * un item du sommaire porte, en plus de son unique paragraphe
  * visible, un SECOND paragraphe entierement vide ({@code endParaRPr} seul,
  * aucun {@code <a:r>}) - un Entree reste par megarde dans le fichier source,
  * sans equivalent visuel dans PowerPoint (rien ne se dessine pour un
@@ -202,7 +201,7 @@ import java.util.regex.Pattern;
  *
  * <h2>Elargissement cible aux diapositives "sommaire"/"table des matieres"
  * (2026-08-31)</h2>
- * <p>Analyse plus poussee du meme fichier "Refonte BEL" (slide 2, sommaire) :
+ * <p>Analyse plus poussee du meme fichier (slide 2, sommaire) :
  * meme apres le troisieme garde-fou ci-dessus, celui-ci ne se declenchait
  * toujours jamais - AUCUNE forme du slide n'entrait jamais dans la branche
  * {@code forced}, y compris le titre du slide et les quatre items du
@@ -258,7 +257,7 @@ import java.util.regex.Pattern;
  * ayant motive cet elargissement (slide 2, les quatre items du sommaire,
  * tous a la MEME taille de police heritee, aucun n'ayant de taille locale) a
  * produire une incoherence visuelle au sein de la liste : deux items
- * ("Trajectoire d'adressage" et "Demande de chiffrage") jamais retrecis (pas
+ * (deux items du sommaire) jamais retrecis (pas
  * de collision detectee - dont le dernier item de la liste, qui ne peut
  * structurellement jamais entrer en collision, n'ayant aucun voisin en
  * dessous), les deux autres retrecis a 70% (collision detectee) - un verdict

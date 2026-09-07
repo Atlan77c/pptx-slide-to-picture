@@ -49,8 +49,7 @@ import java.util.List;
  *       traitait que le cas (1) et seulement quand le run mixte etait le
  *       DERNIER run du paragraphe - trop restrictif : elle laissait ce cas
  *       (2) totalement intact ;</li>
- *   <li><b>slide 25 de "Mes Evenements Emploi et Prestation - Doc vision
- *       1.0.pptx"</b> : un run isole ne contenant AUCUN caractere symbole
+ *   <li><b>slide 25 d'un document interne reel</b> : un run isole ne contenant AUCUN caractere symbole
  *       (juste {@code " p"}, un espace et la lettre latine ordinaire "p" -
  *       coupure malheureuse d'un mot en debut de frappe d'un caractere
  *       special, jamais finalisee) porte quand meme un {@code <a:sym
@@ -171,8 +170,8 @@ public final class SymbolFontRunFixer {
         // latine NI la couleur du run precedent (contrairement a la taille/gras/italique deja
         // reportes ci-dessous) - sans report explicite, chaque nouveau run bascule sur les
         // valeurs par defaut heritees (police et couleur du masque/theme), ce qui denature
-        // visiblement le texte reconstruit (constate en pratique : slide 7 de "Mes Evenements
-        // Emploi et Prestation - Doc vision 1.0.pptx", segment de texte normal suivant la fleche
+        // visiblement le texte reconstruit (constate en pratique : slide 7 d'un document
+        // interne reel, segment de texte normal suivant la fleche
         // Wingdings d'un run mixte affiche en gras et en bleu marine au lieu du gris attendu).
         //
         // getFontFamily(FontGroup.LATIN) - PAS l'overload sans argument - est indispensable

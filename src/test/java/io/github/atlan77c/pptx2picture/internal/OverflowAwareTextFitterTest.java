@@ -427,7 +427,7 @@ class OverflowAwareTextFitterTest {
 
     @Test
     void fitOverflowingText_sommaireSlideTitle_doesNotForceUnconditionalShrink_whenNoRealCollision() throws IOException {
-        // Reproduit le bug racine du slide 2 (sommaire) du fichier "Refonte BEL" :
+        // Reproduit le bug racine du slide 2 (sommaire) d'un document interne reel :
         // getTextAutofit() de POI ne suit jamais l'heritage de placeholder et
         // retombe sur NORMAL (retrecissement systematique, sans verification de
         // collision) des qu'aucun autofit n'est declare localement au niveau slide -
@@ -683,7 +683,7 @@ class OverflowAwareTextFitterTest {
     @Test
     void fitOverflowingText_declaredNone_stillIgnoresTrailingOnlyBlankParagraph() throws IOException {
         // Non-regression du cas d'origine ("Troisieme garde-fou", item2 du sommaire
-        // "Refonte BEL") : un paragraphe vide UNIQUEMENT en fin de bloc (aucun
+        // d'un document interne reel) : un paragraphe vide UNIQUEMENT en fin de bloc (aucun
         // paragraphe vide en milieu de bloc) doit continuer a etre entierement
         // ignore de la mesure - l'amendement du 2026-09-01 (voir Javadoc de la
         // classe et le test precedent) ne doit rien changer a ce cas precis. Comme

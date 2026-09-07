@@ -32,8 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * requise, comportement purement deterministe) - meme discipline que les
  * tests existants de ce projet qui testent en priorite la logique pure
  * plutot que le rendu pixel par pixel.
+ *
+ * <p>Depuis le 2026-09-07, {@link AutoNumberLevelFixer.LevelNumbering#next}
+ * prend un troisieme parametre ({@code AutoNumberingScheme}) - tous les
+ * appels ci-dessous passent {@code AutoNumberingScheme.arabicPeriod} sauf
+ * ceux qui testent explicitement le changement de type (voir la section
+ * dediee en bas de fichier).
  */
 class AutoNumberLevelFixerTest {
+
+    private static final AutoNumberingScheme ARABIC = AutoNumberingScheme.arabicPeriod;
+    private static final AutoNumberingScheme ALPHA_LC = AutoNumberingScheme.alphaLcPeriod;
 
     // ------------------------------------------------------------------
     // LevelNumbering : logique pure, sans POI ni Graphics2D.
@@ -43,9 +52,9 @@ class AutoNumberLevelFixerTest {
     void levelNumbering_singleLevel_incrementsSequentially() {
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(0, null));
-        assertEquals(2, numbering.next(0, null));
-        assertEquals(3, numbering.next(0, null));
+        assertEquals(1, numbering.next(0, null, ARABIC));
+        assertEquals(2, numbering.next(0, null, ARABIC));
+        assertEquals(3, numbering.next(0, null, ARABIC));
     }
 
     @Test
@@ -54,20 +63,20 @@ class AutoNumberLevelFixerTest {
         // niveau 0 est suivi d'items de niveau 1 qui doivent redemarrer independamment.
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(0, null), "Section A");
-        assertEquals(1, numbering.next(1, null), "Section A, sous-point 1");
-        assertEquals(2, numbering.next(1, null), "Section A, sous-point 2");
-        assertEquals(3, numbering.next(1, null), "Section A, sous-point 3");
+        assertEquals(1, numbering.next(0, null, ARABIC), "Section A");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section A, sous-point 1");
+        assertEquals(2, numbering.next(1, null, ARABIC), "Section A, sous-point 2");
+        assertEquals(3, numbering.next(1, null, ARABIC), "Section A, sous-point 3");
 
-        assertEquals(2, numbering.next(0, null), "Section B - NE DOIT PAS etre '1.' comme avec le "
+        assertEquals(2, numbering.next(0, null, ARABIC), "Section B - NE DOIT PAS etre '1.' comme avec le "
                 + "compteur plat de POI, ni continuer la sequence a '5.'");
-        assertEquals(1, numbering.next(1, null), "Section B, sous-point 1 - DOIT redemarrer a 1, "
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section B, sous-point 1 - DOIT redemarrer a 1, "
                 + "pas continuer a partir de 4");
-        assertEquals(2, numbering.next(1, null));
-        assertEquals(3, numbering.next(1, null));
+        assertEquals(2, numbering.next(1, null, ARABIC));
+        assertEquals(3, numbering.next(1, null, ARABIC));
 
-        assertEquals(3, numbering.next(0, null), "Section C");
-        assertEquals(1, numbering.next(1, null), "Section C, sous-point 1 - redemarre encore");
+        assertEquals(3, numbering.next(0, null, ARABIC), "Section C");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section C, sous-point 1 - redemarre encore");
     }
 
     @Test
@@ -78,25 +87,25 @@ class AutoNumberLevelFixerTest {
         // coeur du bug d'origine (POI les faisait continuer a 5, 6, 7...).
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(0, null), "Section A");
-        assertEquals(1, numbering.next(1, null));
-        assertEquals(2, numbering.next(1, null));
-        assertEquals(3, numbering.next(1, null));
+        assertEquals(1, numbering.next(0, null, ARABIC), "Section A");
+        assertEquals(1, numbering.next(1, null, ARABIC));
+        assertEquals(2, numbering.next(1, null, ARABIC));
+        assertEquals(3, numbering.next(1, null, ARABIC));
 
-        assertEquals(4, numbering.next(0, 4), "Section B, startAt=4 explicite");
-        assertEquals(1, numbering.next(1, null), "Section B, sous-point 1 - NE DOIT PAS valoir 5");
-        assertEquals(2, numbering.next(1, null));
-        assertEquals(3, numbering.next(1, null));
-        assertEquals(4, numbering.next(1, null));
+        assertEquals(4, numbering.next(0, 4, ARABIC), "Section B, startAt=4 explicite");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section B, sous-point 1 - NE DOIT PAS valoir 5");
+        assertEquals(2, numbering.next(1, null, ARABIC));
+        assertEquals(3, numbering.next(1, null, ARABIC));
+        assertEquals(4, numbering.next(1, null, ARABIC));
 
         // startAt n'est qu'un PLANCHER (voir levelNumbering_secondExplicitStartAt_isFlooredBy...
         // ci-dessous pour le cas reel qui a revele ce point) : la continuation naturelle du
         // niveau 0 (4 -> 5) est ICI DEJA au-dessus de startAt=4, donc startAt n'a aucun effet -
         // "Section C" doit valoir 5, PAS 4 (un ecrasement inconditionnel par startAt, comme
         // dans une version anterieure de ce correctif, produirait a tort 4 ici aussi).
-        assertEquals(5, numbering.next(0, 4), "Section C, startAt=4 explicite mais deja "
+        assertEquals(5, numbering.next(0, 4, ARABIC), "Section C, startAt=4 explicite mais deja "
                 + "depasse par la continuation naturelle du niveau 0 (4 -> 5)");
-        assertEquals(1, numbering.next(1, null), "Section C, sous-point 1 - redemarre a 1");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section C, sous-point 1 - redemarre a 1");
     }
 
     @Test
@@ -111,25 +120,25 @@ class AutoNumberLevelFixerTest {
         // niveau 0, qui valait deja 5 a ce point (puisque "Section B" avait deja pris la valeur 4).
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(0, null), "Section A");
-        assertEquals(1, numbering.next(1, null), "Section A, sous-point 1");
-        assertEquals(2, numbering.next(1, null), "Section A, sous-point 2");
-        assertEquals(3, numbering.next(1, null), "Section A, sous-point 3");
+        assertEquals(1, numbering.next(0, null, ARABIC), "Section A");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section A, sous-point 1");
+        assertEquals(2, numbering.next(1, null, ARABIC), "Section A, sous-point 2");
+        assertEquals(3, numbering.next(1, null, ARABIC), "Section A, sous-point 3");
         // paragraphe-espaceur (buAutoNum absent) : jamais transmis a next(), voir plus bas.
 
-        assertEquals(4, numbering.next(0, 4), "Section B (startAt=4 explicite dans le XML)");
-        assertEquals(1, numbering.next(1, null), "Section B, sous-point 1");
-        assertEquals(2, numbering.next(1, null), "Section B, sous-point 2");
-        assertEquals(3, numbering.next(1, null), "Section B, sous-point 3");
-        assertEquals(4, numbering.next(1, null), "Section B, sous-point 4");
+        assertEquals(4, numbering.next(0, 4, ARABIC), "Section B (startAt=4 explicite dans le XML)");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section B, sous-point 1");
+        assertEquals(2, numbering.next(1, null, ARABIC), "Section B, sous-point 2");
+        assertEquals(3, numbering.next(1, null, ARABIC), "Section B, sous-point 3");
+        assertEquals(4, numbering.next(1, null, ARABIC), "Section B, sous-point 4");
         // paragraphe-espaceur : jamais transmis a next().
 
-        assertEquals(5, numbering.next(0, 4), "Section C (startAt=4 explicite lui aussi dans "
+        assertEquals(5, numbering.next(0, 4, ARABIC), "Section C (startAt=4 explicite lui aussi dans "
                 + "le XML, mais NE DOIT PAS regresser la sequence de niveau 0 qui est deja a 5)");
-        assertEquals(1, numbering.next(1, null), "Section C, sous-point 1");
-        assertEquals(2, numbering.next(1, null), "Section C, sous-point 2");
-        assertEquals(3, numbering.next(1, null), "Section C, sous-point 3");
-        assertEquals(4, numbering.next(1, null), "Section C, sous-point 4");
+        assertEquals(1, numbering.next(1, null, ARABIC), "Section C, sous-point 1");
+        assertEquals(2, numbering.next(1, null, ARABIC), "Section C, sous-point 2");
+        assertEquals(3, numbering.next(1, null, ARABIC), "Section C, sous-point 3");
+        assertEquals(4, numbering.next(1, null, ARABIC), "Section C, sous-point 4");
         // 2 paragraphes-espaceurs finaux : jamais transmis a next().
     }
 
@@ -140,12 +149,12 @@ class AutoNumberLevelFixerTest {
         // niveau profond doit lui, a nouveau, redemarrer (nouveau sous-groupe).
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(0, null), "A (lvl0)");
-        assertEquals(1, numbering.next(1, null), "x (lvl1)");
-        assertEquals(1, numbering.next(2, null), "p (lvl2)");
-        assertEquals(2, numbering.next(2, null), "q (lvl2)");
-        assertEquals(2, numbering.next(1, null), "y (lvl1) - reprend x=1, ne redemarre pas a 1");
-        assertEquals(1, numbering.next(2, null), "r (lvl2) - redemarre : nouveau parent lvl1");
+        assertEquals(1, numbering.next(0, null, ARABIC), "A (lvl0)");
+        assertEquals(1, numbering.next(1, null, ARABIC), "x (lvl1)");
+        assertEquals(1, numbering.next(2, null, ARABIC), "p (lvl2)");
+        assertEquals(2, numbering.next(2, null, ARABIC), "q (lvl2)");
+        assertEquals(2, numbering.next(1, null, ARABIC), "y (lvl1) - reprend x=1, ne redemarre pas a 1");
+        assertEquals(1, numbering.next(2, null, ARABIC), "r (lvl2) - redemarre : nouveau parent lvl1");
     }
 
     @Test
@@ -155,10 +164,68 @@ class AutoNumberLevelFixerTest {
         // intact autour d'un tel "trou" dans la sequence des appels.
         AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
 
-        assertEquals(1, numbering.next(1, null));
-        assertEquals(2, numbering.next(1, null));
+        assertEquals(1, numbering.next(1, null, ARABIC));
+        assertEquals(2, numbering.next(1, null, ARABIC));
         // ... un paragraphe vide entre les deux, jamais transmis a next() ...
-        assertEquals(3, numbering.next(1, null), "la sequence continue normalement apres le trou");
+        assertEquals(3, numbering.next(1, null, ARABIC), "la sequence continue normalement apres le trou");
+    }
+
+    // ------------------------------------------------------------------
+    // Changement de type au meme niveau - regression reelle du 2026-09-07
+    // (slide 96 d'un document interne reel), voir Javadoc de LevelNumbering.
+    // ------------------------------------------------------------------
+
+    @Test
+    void levelNumbering_typeChangeAtSameLevel_restartsAt1_insteadOfContinuingFlatCount() {
+        // Rejoue exactement le slide 96 reel : 7 items "arabicPeriod" (le dernier avec
+        // startAt=3, deja depasse par la continuation naturelle), 2 paragraphes-espaceurs
+        // arabicPeriod/startAt=8 (invisibles mais avec buAutoNum, donc bien transmis a next()),
+        // puis 2 items "alphaLcPeriod" SANS startAt. Attendu par PowerPoint : "a.", "b." -
+        // PAS "j.", "k." (10e/11e lettre, la ou s'est arretee la sequence arabe plate).
+        AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
+
+        assertEquals(1, numbering.next(0, null, ARABIC));
+        assertEquals(2, numbering.next(0, null, ARABIC));
+        assertEquals(3, numbering.next(0, 3, ARABIC));
+        assertEquals(4, numbering.next(0, 3, ARABIC));
+        assertEquals(5, numbering.next(0, 3, ARABIC));
+        assertEquals(6, numbering.next(0, 3, ARABIC));
+        assertEquals(7, numbering.next(0, 3, ARABIC));
+        assertEquals(8, numbering.next(0, 8, ARABIC), "espaceur invisible 1 - consomme quand meme un index");
+        assertEquals(9, numbering.next(0, 8, ARABIC), "espaceur invisible 2");
+
+        assertEquals(1, numbering.next(0, null, ALPHA_LC), "\"a.\" - PAS \"j.\" (10e lettre) : le "
+                + "changement de type a="+ARABIC+"->b="+ALPHA_LC+" doit redemarrer la sequence a 1, "
+                + "meme niveau, meme direction de parcours (continuation)");
+        assertEquals(2, numbering.next(0, null, ALPHA_LC), "\"b.\"");
+    }
+
+    @Test
+    void levelNumbering_typeChangeOnReturnToShallowerLevel_alsoRestartsAt1() {
+        // Meme regle que la continuation directe ci-dessus, mais sur la branche "on remonte a
+        // un niveau deja visite" : un changement de type doit AUSSI y empecher la reprise de
+        // l'ancienne sequence.
+        AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
+
+        assertEquals(1, numbering.next(0, null, ARABIC), "lvl0, arabic");
+        assertEquals(2, numbering.next(0, null, ARABIC), "lvl0, arabic");
+        assertEquals(1, numbering.next(1, null, ARABIC), "lvl1, arabic (descend)");
+        assertEquals(1, numbering.next(0, null, ALPHA_LC), "lvl0, MAIS type change en alphaLcPeriod - "
+                + "doit redemarrer a 1, pas reprendre a 3 comme le ferait un simple retour de niveau");
+    }
+
+    @Test
+    void levelNumbering_sameTypeThroughout_unaffectedByTypeTracking_noRegression() {
+        // Non-regression explicite : quand un seul type est utilise du debut a la fin pour un
+        // niveau donne (cas des slides 5/6 "Sommaire" deja confirmes par l'utilisateur), le
+        // suivi du type ne doit RIEN changer au comportement deja valide.
+        AutoNumberLevelFixer.LevelNumbering numbering = new AutoNumberLevelFixer.LevelNumbering();
+
+        assertEquals(1, numbering.next(0, null, ARABIC));
+        assertEquals(1, numbering.next(1, null, ARABIC));
+        assertEquals(2, numbering.next(1, null, ARABIC));
+        assertEquals(2, numbering.next(0, null, ARABIC), "reprend au niveau 0, meme type : continuation normale");
+        assertEquals(1, numbering.next(1, null, ARABIC), "redemarre au niveau 1 (nouveau parent), meme type");
     }
 
     // ------------------------------------------------------------------
@@ -200,7 +267,8 @@ class AutoNumberLevelFixerTest {
             if (p.getBulletStyle() == null || p.getBulletStyle().getAutoNumberingScheme() == null) {
                 continue; // espaceur : jamais transmis a next(), voir LevelAwareTextShape.drawParagraphs
             }
-            rendered.add(numbering.next(p.getIndentLevel(), p.getBulletStyle().getAutoNumberingStartAt()));
+            rendered.add(numbering.next(p.getIndentLevel(), p.getBulletStyle().getAutoNumberingStartAt(),
+                    p.getBulletStyle().getAutoNumberingScheme()));
         }
 
         assertEquals(List.of(1, 1, 2, 2, 1, 2), rendered,

@@ -6,6 +6,7 @@ import org.apache.poi.sl.draw.DrawTextShape;
 import org.apache.poi.sl.draw.Drawable;
 import org.apache.poi.sl.draw.geom.CustomGeometry;
 import org.apache.poi.sl.draw.geom.Outline;
+import org.apache.poi.sl.usermodel.AutoNumberingScheme;
 import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextParagraph.BulletStyle;
 import org.apache.poi.sl.usermodel.TextRun;
@@ -145,6 +146,11 @@ import java.util.Map;
  * drawParagraphs()} corrige donc AUSSI la mesure de hauteur utilisee par
  * {@link OverflowAwareTextFitter}, sans point de correction separe a
  * prevoir.
+ *
+ * <p><b>Voir aussi {@link AutoNumberBulletFontFixer}</b> - correctif
+ * independant (police de puce heritee a tort pour un numero automatique),
+ * trouve sur le meme fichier reel (slide 96) que la reinitialisation par
+ * {@code type} documentee ci-dessus sur {@link LevelNumbering}.
  */
 public final class AutoNumberLevelFixer {
 
@@ -290,7 +296,8 @@ public final class AutoNumberLevelFixer {
                     // remet a zero par effet de bord - voir Javadoc de la classe).
                     autoNbrIdx = -1;
                 } else {
-                    autoNbrIdx = numbering.next(p.getIndentLevel(), bs.getAutoNumberingStartAt());
+                    autoNbrIdx = numbering.next(p.getIndentLevel(), bs.getAutoNumberingStartAt(),
+                            bs.getAutoNumberingScheme());
                 }
                 dp.setAutoNumberingIdx(autoNbrIdx);
                 invokeBreakText(dp, graphics);
@@ -373,10 +380,39 @@ public final class AutoNumberLevelFixer {
      * LevelAwareTextShape#drawParagraphs}) n'appelle jamais {@link #next} -
      * il n'affecte donc aucun etat ici, contrairement au compteur plat de POI
      * qu'un tel paragraphe remet a zero par effet de bord.
+     *
+     * <p><b>Reinitialisation sur changement de {@code type} - ajoutee le
+     * 2026-09-07</b>, suite a un second symptome trouve sur le meme fichier
+     * reel que {@link AutoNumberBulletFontFixer} (slide 96) :
+     * une liste "1." a "7." ({@code type="arabicPeriod"}) suivie, AU MEME
+     * niveau d'indentation 0, d'une liste "a."/"b." ({@code
+     * type="alphaLcPeriod"}) se rendait "j."/"k." au lieu de "a."/"b." - la
+     * 10e/11e lettre de l'alphabet, PAS la 1ere/2e. Cause : la continuation
+     * "meme niveau -&gt; incremente" ci-dessus ne tenait compte que du
+     * niveau, jamais du {@code type} du schema - la sequence numerique
+     * plate se poursuivait donc SANS INTERRUPTION a travers le changement de
+     * type (7, puis 8 et 9 pour deux paragraphes "espaceur" vides du meme
+     * niveau avec {@code startAt="8"}, puis 10 et 11 pour "a."/"b." -
+     * {@code AutoNumberingScheme.alphaLcPeriod.format(10)} valant "j.").
+     * Or PowerPoint redemarre TOUJOURS une nouvelle sequence a 1 quand le
+     * type de numerotation change a un niveau donne (change-type = nouvelle
+     * liste), y compris quand ce niveau avait deja une sequence en cours.
+     * Desormais, {@link #types} retient, PAR NIVEAU, le dernier {@code
+     * AutoNumberingScheme} utilise ; la continuation ET la reprise d'un
+     * niveau deja visite (les deux branches ci-dessus qui evitaient jusqu'ici
+     * un redemarrage a 1) exigent EN PLUS que le type courant soit identique
+     * a celui deja enregistre pour ce niveau - sinon, meme niveau, meme
+     * "direction" de parcours, la valeur naturelle redemarre a 1 comme pour
+     * une toute premiere visite. Aucune regression sur le cas deja confirme
+     * par l'utilisateur (slides 5/6, "Sommaire") : cette liste n'utilise
+     * qu'un seul type par niveau du debut a la fin, condition dans laquelle
+     * ce changement est un no-op strict (le type enregistre pour un niveau
+     * egale toujours le type courant).
      */
     static final class LevelNumbering {
 
         private final Map<Integer, Integer> counters = new HashMap<>();
+        private final Map<Integer, AutoNumberingScheme> types = new HashMap<>();
         private int previousLevel = Integer.MIN_VALUE;
 
         /**
@@ -384,22 +420,29 @@ public final class AutoNumberLevelFixer {
          *                du paragraphe numerote courant.
          * @param startAt {@code BulletStyle#getAutoNumberingStartAt()} de ce
          *                paragraphe, ou {@code null} si absent.
+         * @param scheme  {@code BulletStyle#getAutoNumberingScheme()} de ce
+         *                paragraphe (jamais {@code null} - l'appelant ne
+         *                delegue a {@link #next} que pour un paragraphe dont
+         *                le schema auto est effectivement actif).
          * @return l'index a passer a {@code DrawTextParagraph#setAutoNumberingIdx(int)}
          * pour ce paragraphe.
          */
-        int next(int level, Integer startAt) {
-            boolean continuation = (previousLevel == level);
+        int next(int level, Integer startAt, AutoNumberingScheme scheme) {
+            boolean sameTypeAtLevel = scheme.equals(types.get(level));
+            boolean continuation = (previousLevel == level) && sameTypeAtLevel;
             int natural;
             if (continuation) {
                 natural = counters.getOrDefault(level, 0) + 1;
-            } else if (previousLevel > level && counters.containsKey(level)) {
-                // on remonte a un niveau deja visite : on reprend sa sequence, on ne la
-                // reinitialise pas.
+            } else if (previousLevel > level && counters.containsKey(level) && sameTypeAtLevel) {
+                // on remonte a un niveau deja visite AVEC LE MEME TYPE : on reprend sa
+                // sequence, on ne la reinitialise pas.
                 natural = counters.get(level) + 1;
             } else {
-                // premiere visite de ce niveau, ou on vient d'y descendre pour la 1ere fois
-                // depuis le dernier paragraphe numerote (meme si ce niveau avait deja une
-                // valeur perimee provenant d'une excursion abandonnee).
+                // premiere visite de ce niveau, on vient d'y descendre pour la 1ere fois depuis
+                // le dernier paragraphe numerote (meme si ce niveau avait deja une valeur perimee
+                // provenant d'une excursion abandonnee), OU le type de numerotation vient de
+                // changer a ce niveau (voir Javadoc de la classe, section "Reinitialisation sur
+                // changement de type") : dans tous ces cas, PowerPoint redemarre a 1.
                 natural = 1;
             }
             // startAt n'est qu'un PLANCHER (voir Javadoc de la classe, section "Semantique
@@ -407,7 +450,9 @@ public final class AutoNumberLevelFixer {
             // niveau, il ne peut que la relever.
             int value = (startAt != null) ? Math.max(startAt, natural) : natural;
             counters.put(level, value);
+            types.put(level, scheme);
             counters.keySet().removeIf(l -> l > level);
+            types.keySet().removeIf(l -> l > level);
             previousLevel = level;
             return value;
         }

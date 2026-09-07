@@ -26,8 +26,8 @@ import java.util.Set;
  * cellules de tableau natif" de la Javadoc de cette derniere pour le constat complet.
  *
  * <h2>Cas reel a l'origine de ce correctif (2026-09-04)</h2>
- * <p>Signale par l'utilisateur : fichier "Mes Evenements Emploi et Prestation - Doc
- * vision 1.0.pptx", slide 18, tableau "Tableau 6". Une cellule de la colonne "Analyse"
+ * <p>Signale par l'utilisateur : sur un document interne reel, slide 18,
+ * tableau "Tableau 6". Une cellule de la colonne "Analyse"
  * (3 paragraphes, aucun {@code <a:pPr>} local - interligne entierement herite, donc en
  * pourcentage) affichait un texte visiblement plus haut que chez PowerPoint, au point de
  * chevaucher la cellule de la ligne suivante dans la meme colonne. Diagnostic de

@@ -13,9 +13,8 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Reproduit le motif observe sur un fichier reel (slide 9 de
- * "02.CGSI 2023 04 11 - SI Fraude_DIANE-CGSI_11avril2023_v1.0.pptx") : une
- * puce Wingdings declaree avec une liste de police de repli au format CSS
+ * Reproduit le motif observe sur un fichier reel (slide 9 d'un document
+ * interne reel) : une puce Wingdings declaree avec une liste de police de repli au format CSS
  * ({@code "Wingdings,Sans-Serif"}) - non reconnue par Apache POI, qui ne
  * remappe le caractere de la puce vers son pictogramme que pour un
  * {@code typeface} correspondant exactement (insensible a la casse) a

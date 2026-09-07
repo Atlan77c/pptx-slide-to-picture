@@ -64,7 +64,7 @@ class HorizontalOverflowLineBreakFixerTest {
         // largeur mesuree se situe entre 97% et 100% de la largeur utile - POI la
         // considere comme tenant tout juste (breakText() ne la coupe pas), mais le
         // rendu reel peut encore la couper (ecart Java2D/rendu reel confirme
-        // empiriquement sur la slide 57 de "Cadrage de vision_ Definir_0.6.pptx").
+        // empiriquement sur la slide 57 d'un document interne reel).
         //
         // Plutot que de coder en dur une largeur de boite (fragile - la meme boite
         // ne produirait pas forcement le meme ratio largeur-mesuree/largeur-utile

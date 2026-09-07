@@ -15,7 +15,8 @@ import java.util.List;
  * derniers mots d'une ligne trop large), plutot que de retrecir la police -
  * preserve la taille de police d'origine, donc plus fidele visuellement a
  * PowerPoint que l'approche "retrecissement" pour ce point precis. Cas reels
- * confirmes ayant motive ce correctif (fichier "Cadrage de vision_ Definir_0.6.pptx") :
+ * confirmes ayant motive ce correctif (meme document interne reel que dans le reste
+ * de ce paquetage) :
  * slide 57 ("...trop perçus  et la rupture...", reflow horizontal revele par le
  * retrecissement vertical existant - voir {@link OverflowAwareTextFitter} -
  * qui recalcule un decoupage de ligne different) et slide 68 (Rectangle 9/10/12).
